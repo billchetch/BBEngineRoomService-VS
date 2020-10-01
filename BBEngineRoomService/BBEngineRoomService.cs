@@ -14,7 +14,7 @@ using Chetch.Database;
 
 namespace BBEngineRoomService
 {
-    class BBEngineRoomService : ADMService
+    public class BBEngineRoomService : ADMService
     {
         new public class MessageSchema : Chetch.Messaging.MessageSchema
         {
@@ -69,7 +69,7 @@ namespace BBEngineRoomService
         public ArduinoDeviceManager GensetADM { get; internal set; }
         private SwitchSensor _pompaCelup;
 
-        public BBEngineRoomService() : base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //base("BBEngineRoom", "ADMTestServiceClient", "ADMTestService", "ADMTestServiceLog") // 
+        public BBEngineRoomService() : base("BBEngineRoom", "ADMTestServiceClient", "ADMTestService", "ADMTestServiceLog") // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
@@ -151,7 +151,6 @@ namespace BBEngineRoomService
 
                 adm.Sampler.SampleProvided += HandleSampleProvided;
                 GensetADM = adm; //keep a named ref
-
             }
         }
 
