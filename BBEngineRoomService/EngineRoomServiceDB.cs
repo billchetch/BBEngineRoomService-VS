@@ -9,6 +9,14 @@ namespace BBEngineRoomService
 {
     class EngineRoomServiceDB : DB
     {
+        public enum LogEventType
+        {
+            ON,
+            OFF,
+            ALERT,
+            ALERT_OFF,
+            WARNING
+        }
         static public EngineRoomServiceDB Create(System.Configuration.ApplicationSettingsBase settings, String dbnameKey = null)
         {
             EngineRoomServiceDB db = dbnameKey != null ? DB.Create<EngineRoomServiceDB>(settings, dbnameKey) : DB.Create<EngineRoomServiceDB>(settings);
@@ -36,19 +44,19 @@ namespace BBEngineRoomService
             base.Initialize();
         }
 
-        public long LogEvent(String eventType, String source, String description = null)
+        public long LogEvent(LogEventType logEvent, String source, String description = null)
         {
             var newRow = new DBRow();
-            newRow["event_type"] = eventType;
+            newRow["event_type"] = logEvent.ToString();
             newRow["event_source"] = source;
             if (description != null) newRow["event_description"] = description;
 
             return Insert("event_log", newRow);
         }
 
-        public DBRow GetLatestEvent(String eventType, String source)
+        public DBRow GetLatestEvent(LogEventType logEvent, String source)
         {
-            return SelectRow("event", "*", eventType, source);
+            return SelectRow("event", "*", logEvent.ToString(), source);
         }
     }
 }
