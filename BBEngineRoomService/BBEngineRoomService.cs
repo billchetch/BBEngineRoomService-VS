@@ -70,7 +70,7 @@ namespace BBEngineRoomService
 
         public const double RPM_CALIBRATION_BANTU = 1.0; // / 2.25;
         public const double RPM_CALIBRATION_INDUK = 1.0; // / 2.25;
-        public const double RPM_CALIBRATION_GENSET1 = 1; //0.552;
+        public const double RPM_CALIBRATION_GENSET1 = 0.538;
         public const double RPM_CALIBRATION_GENSET2 = 0.552;
         public const int RPM_SAMPLE_SIZE = 7;
         public const int RPM_SAMPLE_INTERVAL = 3000; //ms
@@ -78,7 +78,7 @@ namespace BBEngineRoomService
 
         public const String POMPA_CELUP_ID = "pmp_clp";
 
-        public const int TEMP_SAMPLE_INTERVAL = 5000;
+        public const int TEMP_SAMPLE_INTERVAL = 2000000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
 
         public const String OIL_SENSOR_NAME = "OIL";
@@ -144,15 +144,15 @@ namespace BBEngineRoomService
             if (adm != null) //TODO: change to switch to determine which ADM we are dealing with
             {
                 //Pompa celup
-                /*_pompaCelup = new SwitchSensor(10, 250, POMPA_CELUP_ID, "CELUP");
+                /*_pompaCelup = new SwitchSensor(6, 250, POMPA_CELUP_ID, "CELUP");
                 adm.AddDevice(_pompaCelup);
                 //get latest data
-                DBRow row = _erdb.GetLatestEvent("ON", POMPA_CELUP_ID);
+                DBRow row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, POMPA_CELUP_ID);
                 if (row != null)
                 {
                     _pompaCelup.LastOn = row.GetDateTime("created");
                 }
-                row = _erdb.GetLatestEvent("OFF", POMPA_CELUP_ID);
+                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, POMPA_CELUP_ID);
                 if (row != null)
                 {
                     _pompaCelup.LastOff = row.GetDateTime("created");
@@ -160,7 +160,7 @@ namespace BBEngineRoomService
 
 
                 //temperature array for all engines connected to a board
-                DS18B20Array temp = new DS18B20Array(3, GENSET1_ID + "_arr");
+                DS18B20Array temp = new DS18B20Array(5, GENSET1_ID + "_arr");
                 temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                 temp.SampleSize = TEMP_SAMPLE_SIZE;
                 temp.SensorIDs.Add("gs1_temp");
@@ -174,24 +174,25 @@ namespace BBEngineRoomService
                 rpm.Calibration = RPM_CALIBRATION_GENSET1;
                 adm.AddDevice(rpm);
 
-                SwitchSensor oilSensor = new SwitchSensor(5, 250, GENSET1_ID + "_oil", OIL_SENSOR_NAME);
+                SwitchSensor oilSensor = new SwitchSensor(3, 250, GENSET1_ID + "_oil", OIL_SENSOR_NAME);
                 adm.AddDevice(oilSensor);
 
                 Engine engine = new Engine(GENSET1_ID, rpm, oilSensor);
                 AddEngine(engine);
 
                 //genset 2
-                /*rpm = new RPMCounter(8, GENSET2_ID + "_rpm", "RPM");
+                rpm = new RPMCounter(8, GENSET2_ID + "_rpm", "RPM");
                 rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.Calibration = RPM_CALIBRATION_GENSET2;
                 adm.AddDevice(rpm);
 
-                oli = new Chetch.Arduino.Devices.SwitchSensor(9, 250, GENSET2_ID + "_oil", OIL_SENSOR_NAME);
-                adm.AddDevice(oli);
+                oilSensor = new Chetch.Arduino.Devices.SwitchSensor(9, 250, GENSET2_ID + "_oil", OIL_SENSOR_NAME);
+                adm.AddDevice(oilSensor);
 
-                AddEngine(GENSET2_ID);*/
+                engine = new Engine(GENSET2_ID, rpm, oilSensor);
+                AddEngine(engine);
 
                 adm.Sampler.SampleProvided += HandleSampleProvided;
             }
@@ -239,17 +240,17 @@ namespace BBEngineRoomService
             switch(engine.CheckOil()){
                 case Engine.OilState.LEAK:
                     msg = "Oil leak detected";
-                    message = MessageSchema.RaiseAlarm(engine.OilSensor.ID, true, msg);
+                    message = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(engine.OilSensor.ID, BBAlarmsService.AlarmState.CRITICAL, msg);
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
                     break;
                 case Engine.OilState.NORMAL:
                     msg = "Oil state normal";
-                    message = MessageSchema.RaiseAlarm(engine.OilSensor.ID, false, msg);
+                    message = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(engine.OilSensor.ID, BBAlarmsService.AlarmState.OFF, msg);
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT_OFF, engine.OilSensor.ID, msg);
                     break;
                 case Engine.OilState.SENSOR_FAULT:
                     msg = "Oil sensor faulty";
-                    message = MessageSchema.RaiseAlarm(engine.OilSensor.ID, true, msg);
+                    message = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(engine.OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, msg);
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
                     break;
             }
