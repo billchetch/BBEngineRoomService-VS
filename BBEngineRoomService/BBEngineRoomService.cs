@@ -79,7 +79,7 @@ namespace BBEngineRoomService
 
         public const String POMPA_CELUP_ID = "pmp_clp";
 
-        public const int TEMP_SAMPLE_INTERVAL = 30000; //temp changes very slowly in the engine so no need to sample frequently
+        public const int TEMP_SAMPLE_INTERVAL = 10000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
 
         public const String OIL_SENSOR_NAME = "OIL";
