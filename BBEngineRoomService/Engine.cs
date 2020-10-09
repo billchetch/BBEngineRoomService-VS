@@ -4,11 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Chetch.Arduino.Devices.Counters;
+using Chetch.Arduino.Devices.Temperature;
 using Chetch.Arduino.Devices;
+using Chetch.Arduino;
 
 namespace BBEngineRoomService
 {
-    public class Engine
+    public class Engine : ArduinoDeviceGroup
     {
         public enum OilState
         {
@@ -18,7 +20,6 @@ namespace BBEngineRoomService
         }
         public const int IS_RUNNING_RPM_THRESHOLD = 100;
 
-        public String ID { get; internal set; }
         private bool _running;
         public bool Running
         {
@@ -37,14 +38,17 @@ namespace BBEngineRoomService
         }
         public RPMCounter RPM { get; internal set; }
         public SwitchSensor OilSensor { get; internal set; }
+        public DS18B20Array.DS18B20Sensor TempSensor { get; internal set; }
         public DateTime LastOn { get; set; }
         public DateTime LastOff { get; set; }
 
-        public Engine(String id, RPMCounter rpm, SwitchSensor oilSensor)
+        public Engine(String id, RPMCounter rpm, SwitchSensor oilSensor, DS18B20Array.DS18B20Sensor tempSensor) : base(id, null)
         {
-            ID = id;
             RPM = rpm;
             OilSensor = oilSensor;
+            TempSensor = tempSensor;
+            AddDevice(RPM);
+            AddDevice(OilSensor);
         }
 
         public OilState CheckOil()

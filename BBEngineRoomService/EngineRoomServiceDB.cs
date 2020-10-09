@@ -58,5 +58,14 @@ namespace BBEngineRoomService
         {
             return SelectRow("event", "*", logEvent.ToString(), source);
         }
+
+        public long LogState(String stateSource, String description, Object state)
+        {
+            var newRow = new DBRow();
+            newRow["state_source"] = stateSource;
+            newRow["state_description"] = description;
+            newRow["state"] = state;
+            return Insert("state_log", newRow);
+        }
     }
 }
