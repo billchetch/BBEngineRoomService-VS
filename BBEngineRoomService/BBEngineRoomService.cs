@@ -62,7 +62,7 @@ namespace BBEngineRoomService
             }
         }
 
-        public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
+        public const int TIMER_STATE_LOG_INTERVAL = 10 * 1000;
 
         public const String INDUK_ID = "idk";
         public const String BANTU_ID = "bnt";
@@ -211,8 +211,8 @@ namespace BBEngineRoomService
                 temp = new DS18B20Array(5, "temp_arr");
                 temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                 temp.SampleSize = TEMP_SAMPLE_SIZE;
-                temp.SensorIDs.Add(INDUK_ID + "_temp");
-                temp.SensorIDs.Add(BANTU_ID + "_temp");
+                temp.AddSensor(INDUK_ID + "_temp");
+                temp.AddSensor(BANTU_ID + "_temp");
                 adm.AddDevice(temp);
                 
                 //Induk
@@ -247,8 +247,8 @@ namespace BBEngineRoomService
                 temp = new DS18B20Array(5, "temp_arr");
                 temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                 temp.SampleSize = TEMP_SAMPLE_SIZE;
-                temp.SensorIDs.Add(GENSET2_ID + "_temp");
-                temp.SensorIDs.Add(GENSET1_ID + "_temp");
+                temp.AddSensor(GENSET2_ID + "_temp");
+                temp.AddSensor(GENSET1_ID + "_temp");
                 adm.AddDevice(temp);
                 
                 //genset 1
