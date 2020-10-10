@@ -15,7 +15,9 @@ namespace BBEngineRoomService
             OFF,
             ALERT,
             ALERT_OFF,
-            WARNING
+            WARNING,
+            ONLINE,
+            OFFLINE
         }
         static public EngineRoomServiceDB Create(System.Configuration.ApplicationSettingsBase settings, String dbnameKey = null)
         {

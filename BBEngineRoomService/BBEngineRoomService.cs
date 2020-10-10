@@ -19,6 +19,7 @@ namespace BBEngineRoomService
         new public class MessageSchema : ADMService.MessageSchema
         {
             public const String COMMAND_TEST = "test";
+            public const String COMMAND_LIST_ENGINES = "list-engines";
             public const String COMMAND_ENGINE_STATUS = "engine-status";
             public const String COMMAND_SET_ENGINE_ONLINE = "engine-online";
 
@@ -438,7 +439,7 @@ namespace BBEngineRoomService
                             {
                                 engine.Running = running;
                                 EngineRoomServiceDB.LogEventType let = engine.Running ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF;
-                                _erdb.LogEvent(let, engine.ID, "Engine");
+                                _erdb.LogEvent(let, engine.ID, "Engine now " + let.ToString());
 
                                 //OnOilCheckRequired(engine);
                                 schema.AddEngine(engine); //add engine data to provide running/not running event changes
@@ -463,6 +464,7 @@ namespace BBEngineRoomService
             base.AddCommandHelp();
 
             AddCommandHelp(MessageSchema.COMMAND_TEST, "Used during development to test stuff");
+            AddCommandHelp(MessageSchema.COMMAND_LIST_ENGINES, "List online engines");
             AddCommandHelp(MessageSchema.COMMAND_ENGINE_STATUS, "Gets status of <engineID>");
             AddCommandHelp(MessageSchema.COMMAND_SET_ENGINE_ONLINE, "Set engine online status to <true/false>");
         }
@@ -483,14 +485,25 @@ namespace BBEngineRoomService
                     //Message 
                     return false;
 
+                case MessageSchema.COMMAND_LIST_ENGINES:
+                    List<Engine> engines = GetEngines();
+                    List<String> engineIDs = new List<String>();
+
+                    foreach(Engine eng in engines)
+                    {
+                        if (eng.Online) engineIDs.Add(eng.ID);
+                    }
+                    response.AddValue("Engines", engineIDs);
+                    return true;
+
                 case MessageSchema.COMMAND_ENGINE_STATUS:
                     if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No engine specified");
                     engine = GetEngine(args[0].ToString());
                     if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
                     schema.AddEngine(engine);
-                    if(engine.RPM != null)schema.AddRPM(engine.RPM);
-                    if(engine.TempSensor != null)schema.AddDS18B20Sensor(engine.TempSensor);
-                    if (engine.OilSensor != null)schema.AddOilSensor(engine.OilSensor);
+                    if(engine.RPM != null)message.AddValue("RPMDeviceID", engine.RPM.ID);
+                    if(engine.TempSensor != null)message.AddValue("TempSensorID", engine.TempSensor.ID);
+                    if (engine.OilSensor != null)message.AddValue("OilSensorDeviceID", engine.OilSensor.ID);
                     return true;
 
                 case MessageSchema.COMMAND_SET_ENGINE_ONLINE:
@@ -499,6 +512,8 @@ namespace BBEngineRoomService
                     if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
                     if (args[1] == null) throw new Exception("Online/Offline status not specified");
                     engine.Online = Chetch.Utilities.Convert.ToBoolean(args[1]);
+                    EngineRoomServiceDB.LogEventType let = engine.Online ? EngineRoomServiceDB.LogEventType.ONLINE : EngineRoomServiceDB.LogEventType.OFFLINE;
+                    _erdb.LogEvent(let, engine.ID, "Engine now " + let.ToString());
                     schema.AddEngine(engine);
                     return true;
 
