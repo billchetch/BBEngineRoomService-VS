@@ -20,6 +20,17 @@ namespace BBEngineRoomService
         }
         public const int IS_RUNNING_RPM_THRESHOLD = 100;
 
+        private bool _online = true;
+        public bool Online
+        {
+            get { return _online; }
+            set
+            {
+                Running = false;
+                _online = value;
+            }
+        }
+
         private bool _running;
         public bool Running
         {
