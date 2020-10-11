@@ -21,7 +21,7 @@ namespace BBEngineRoomService
         }
         public const int IS_RUNNING_RPM_THRESHOLD = 100;
 
-        private bool _online = true;
+        private bool _online = false;
         public bool Online
         {
             get { return _online; }
@@ -80,6 +80,9 @@ namespace BBEngineRoomService
             if(offline != null)
             {
                 Online = online == null ? false : online.GetDateTime("created").Ticks > offline.GetDateTime("created").Ticks;
+            } else if(online != null)
+            {
+                Online = true;
             }
         }
 

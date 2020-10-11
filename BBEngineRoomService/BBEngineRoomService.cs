@@ -79,6 +79,35 @@ namespace BBEngineRoomService
             }
         } //end MessageSchema class
 
+        class Pump : SwitchSensor
+        {
+            public const String SENSOR_NAME = "PUMP";
+
+            public Pump(int pinNumber, String id) : base(pinNumber, 250, id, SENSOR_NAME) { }
+
+            public void initialise(EngineRoomServiceDB erdb)
+            {
+                //get latest data
+                DBRow row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID);
+                if (row != null)
+                {
+                    LastOn = row.GetDateTime("created");
+                }
+                row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
+                if (row != null)
+                {
+                    LastOff = row.GetDateTime("created");
+                }
+            }
+        } //end pump
+
+        class OilSensor : SwitchSensor
+        {
+            public const String SENSOR_NAME = "OIL";
+
+            public OilSensor(int pinNumber, String id) : base(pinNumber, 250, id, SENSOR_NAME) { }
+        } //end oil sensor
+
         public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
 
         public const String INDUK_ID = "idk";
@@ -95,14 +124,15 @@ namespace BBEngineRoomService
         public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_INTERVAL_PRUNE_MIN_MAX;
 
         public const String POMPA_CELUP_ID = "pmp_clp";
+        public const String POMPA_SOLAR_ID = "pmp_sol";
+
 
         public const int TEMP_SAMPLE_INTERVAL = 20000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
-
-        public const String OIL_SENSOR_NAME = "OIL";
-
+        
         private EngineRoomServiceDB _erdb;
-        private SwitchSensor _pompaCelup;
+        private Pump _pompaCelup;
+        private Pump _pompaSolar;
 
         private Dictionary<String, Engine> engines = new Dictionary<String, Engine>();
 
@@ -211,20 +241,15 @@ namespace BBEngineRoomService
             if (adm.BoardID.Equals("ER1"))
             {
                 //Pompa celup
-                /*_pompaCelup = new SwitchSensor(6, 250, POMPA_CELUP_ID, "CELUP");
+                /*_pompaCelup = new Pump(6, POMPA_CELUP_ID);
+                _pompaCelup.initialise(_erdb);
                 adm.AddDevice(_pompaCelup);
-                //get latest data
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, POMPA_CELUP_ID);
-                if (row != null)
-                {
-                    _pompaCelup.LastOn = row.GetDateTime("created");
-                }
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, POMPA_CELUP_ID);
-                if (row != null)
-                {
-                    _pompaCelup.LastOff = row.GetDateTime("created");
-                }*/
-
+                
+                //Pompa solar
+                /*_pompaSolar = new Pump(5, POMPA_SOLAR_ID);
+                _pompaSolar.initialise(_erdb);
+                adm.AddDevice(_pompaSolar);
+                */
 
                 //temperature array for all engines connected to a board
                 temp = new DS18B20Array(5, "temp_arr");
@@ -247,7 +272,8 @@ namespace BBEngineRoomService
                 engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                
+                Tracing?.TraceEvent(TraceEventType.Information, 0, "Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
+
                 //genset 2
                 rpm = new RPMCounter(8, BANTU_ID + "_rpm", "RPM");
                 rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
@@ -260,8 +286,10 @@ namespace BBEngineRoomService
                 engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
+                Tracing?.TraceEvent(TraceEventType.Information, 0, "Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
 
-            } else if (adm.BoardID.Equals("ER2")) //TODO: change to switch to determine which ADM we are dealing with
+            }
+            else if (adm.BoardID.Equals("ER2")) //TODO: change to switch to determine which ADM we are dealing with
             {
                 //temperature array for all engines connected to a board
                 temp = new DS18B20Array(5, "temp_arr");
@@ -284,6 +312,7 @@ namespace BBEngineRoomService
                 engine = new Engine(GENSET1_ID, rpm, null, temp.GetSensor(GENSET1_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
+                Tracing?.TraceEvent(TraceEventType.Information, 0, "Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
 
                 //genset 2
                 rpm = new RPMCounter(8, GENSET2_ID + "_rpm", "RPM");
@@ -298,7 +327,7 @@ namespace BBEngineRoomService
                 engine = new Engine(GENSET2_ID, rpm, null, temp.GetSensor(GENSET2_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-
+                Tracing?.TraceEvent(TraceEventType.Information, 0, "Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
             }
         }
         
@@ -400,7 +429,7 @@ namespace BBEngineRoomService
                             _erdb.LogEvent(_pompaCelup.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, _pompaCelup.ID, "Pompa Celup");
                         }
 
-                        if (dev.Name == OIL_SENSOR_NAME)
+                        if (dev is OilSensor)
                         {
                             Engine engine = GetEngineForDevice(dev.ID);
                             //OnOilCheckRequired(engine);
@@ -499,10 +528,14 @@ namespace BBEngineRoomService
                     engine = GetEngine(args[0].ToString());
                     if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
                     if (args[1] == null) throw new Exception("Online/Offline status not specified");
-                    engine.Online = Chetch.Utilities.Convert.ToBoolean(args[1]);
-                    EngineRoomServiceDB.LogEventType let = engine.Online ? EngineRoomServiceDB.LogEventType.ONLINE : EngineRoomServiceDB.LogEventType.OFFLINE;
-                    _erdb.LogEvent(let, engine.ID, "Engine now " + let.ToString());
-                    schema.AddEngine(engine);
+                    bool online = Chetch.Utilities.Convert.ToBoolean(args[1]);
+                    if (online != engine.Online)
+                    {
+                        engine.Online = online;
+                        EngineRoomServiceDB.LogEventType let = engine.Online ? EngineRoomServiceDB.LogEventType.ONLINE : EngineRoomServiceDB.LogEventType.OFFLINE;
+                        _erdb.LogEvent(let, engine.ID, "Engine now " + let.ToString());
+                        schema.AddEngine(engine);
+                    }
                     return true;
 
                 default:
