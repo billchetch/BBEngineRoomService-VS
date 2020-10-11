@@ -7,7 +7,7 @@ using Chetch.Database;
 
 namespace BBEngineRoomService
 {
-    class EngineRoomServiceDB : DB
+    public class EngineRoomServiceDB : DB
     {
         public enum LogEventType
         {

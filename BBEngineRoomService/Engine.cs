@@ -7,6 +7,7 @@ using Chetch.Arduino.Devices.Counters;
 using Chetch.Arduino.Devices.Temperature;
 using Chetch.Arduino.Devices;
 using Chetch.Arduino;
+using Chetch.Database;
 
 namespace BBEngineRoomService
 {
@@ -37,13 +38,16 @@ namespace BBEngineRoomService
             get { return _running; }
             set
             {
-                _running = value;
-                if (_running)
+                if (_running != value)
                 {
-                    LastOn = DateTime.Now;
-                } else
-                {
-                    LastOff = DateTime.Now;
+                    if (_running)
+                    {
+                        LastOn = DateTime.Now;
+                    }
+                    else
+                    {
+                        LastOff = DateTime.Now;
+                    }
                 }
             }
         }
@@ -60,6 +64,23 @@ namespace BBEngineRoomService
             TempSensor = tempSensor;
             AddDevice(RPM);
             AddDevice(OilSensor);
+        }
+
+        public void initialise(EngineRoomServiceDB erdb)
+        {
+            DBRow row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID);
+            if (row != null) LastOn = row.GetDateTime("created");
+            row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
+            if (row != null) LastOff = row.GetDateTime("created");
+            row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
+
+            DBRow offline = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFFLINE, ID);
+            DBRow online = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ONLINE, ID);
+
+            if(offline != null)
+            {
+                Online = online == null ? false : online.GetDateTime("created").Ticks > offline.GetDateTime("created").Ticks;
+            }
         }
 
         public OilState CheckOil()

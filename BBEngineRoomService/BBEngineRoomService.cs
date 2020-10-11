@@ -245,10 +245,7 @@ namespace BBEngineRoomService
                 //adm.AddDevice(oilSensor);
 
                 engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, INDUK_ID);
-                if (row != null) engine.LastOn = row.GetDateTime("created");
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, INDUK_ID);
-                if (row != null) engine.LastOff = row.GetDateTime("created");
+                engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
                 
                 //genset 2
@@ -261,10 +258,7 @@ namespace BBEngineRoomService
                 //SwitchSensor oilSensor = new Chetch.Arduino.Devices.SwitchSensor(9, 250, GENSET2_ID + "_oil", OIL_SENSOR_NAME);
                 
                 engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, BANTU_ID);
-                if (row != null) engine.LastOn = row.GetDateTime("created");
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, BANTU_ID);
-                if (row != null) engine.LastOff = row.GetDateTime("created");
+                engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
 
             } else if (adm.BoardID.Equals("ER2")) //TODO: change to switch to determine which ADM we are dealing with
@@ -288,10 +282,7 @@ namespace BBEngineRoomService
                 //SwitchSensor oilSensor = new SwitchSensor(6, 250, GENSET1_ID + "_oil", OIL_SENSOR_NAME);
                 
                 engine = new Engine(GENSET1_ID, rpm, null, temp.GetSensor(GENSET1_ID + "_temp"));
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, GENSET1_ID);
-                if (row != null) engine.LastOn = row.GetDateTime("created");
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, GENSET1_ID);
-                if (row != null) engine.LastOff = row.GetDateTime("created");
+                engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
 
                 //genset 2
@@ -305,10 +296,7 @@ namespace BBEngineRoomService
                 //SwitchSensor oilSensor = new Chetch.Arduino.Devices.SwitchSensor(9, 250, GENSET2_ID + "_oil", OIL_SENSOR_NAME);
                 
                 engine = new Engine(GENSET2_ID, rpm, null, temp.GetSensor(GENSET2_ID + "_temp"));
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, GENSET2_ID);
-                if (row != null) engine.LastOn = row.GetDateTime("created");
-                row = _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, GENSET2_ID);
-                if (row != null) engine.LastOff = row.GetDateTime("created");
+                engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
 
             }
