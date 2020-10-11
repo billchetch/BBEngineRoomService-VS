@@ -61,11 +61,12 @@ namespace BBEngineRoomService
             return SelectRow("event", "*", logEvent.ToString(), source);
         }
 
-        public long LogState(String stateSource, String description, Object state)
+        public long LogState(String stateSource, String stateName, Object state, String description = null)
         {
             var newRow = new DBRow();
             newRow["state_source"] = stateSource;
-            newRow["state_description"] = description;
+            newRow["state_name"] = stateName;
+            if(description != null)newRow["state_description"] = description;
             newRow["state"] = state;
             return Insert("state_log", newRow);
         }
