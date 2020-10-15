@@ -140,7 +140,7 @@ namespace BBEngineRoomService
 
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
 
-        public BBEngineRoomService() : base("BBEngineRoom", "ADMTestServiceClient", "ADMTestService", "ADMTestServiceLog") // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
+        public BBEngineRoomService() : base("BBEngineRoom", "ADMTestServiceClient", "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
