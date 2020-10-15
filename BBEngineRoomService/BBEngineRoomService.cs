@@ -235,7 +235,7 @@ namespace BBEngineRoomService
             DS18B20Array temp;
             Engine engine;
             RPMCounter rpm;
-            SwitchSensor oilSensor;
+            OilSensor oilSensor;
             DBRow row;
             
             if (adm.BoardID.Equals("ER1"))
@@ -266,7 +266,7 @@ namespace BBEngineRoomService
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.Calibration = RPM_CALIBRATION_INDUK;
                 
-                //SwitchSensor oilSensor = new SwitchSensor(6, 250, GENSET1_ID + "_oil", OIL_SENSOR_NAME);
+                //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
                 //adm.AddDevice(oilSensor);
 
                 engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
@@ -281,7 +281,7 @@ namespace BBEngineRoomService
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.Calibration = RPM_CALIBRATION_BANTU;
                 
-                //SwitchSensor oilSensor = new Chetch.Arduino.Devices.SwitchSensor(9, 250, GENSET2_ID + "_oil", OIL_SENSOR_NAME);
+                //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
                 
                 engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
                 engine.initialise(_erdb);
@@ -307,7 +307,7 @@ namespace BBEngineRoomService
                 rpm.Calibration = RPM_CALIBRATION_GENSET1;
                 rpm.SampleIntervalDeviation = -1;
                 
-                //SwitchSensor oilSensor = new SwitchSensor(6, 250, GENSET1_ID + "_oil", OIL_SENSOR_NAME);
+                //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
                 
                 engine = new Engine(GENSET1_ID, rpm, null, temp.GetSensor(GENSET1_ID + "_temp"));
                 engine.initialise(_erdb);
@@ -322,7 +322,7 @@ namespace BBEngineRoomService
                 rpm.SampleIntervalDeviation = 15; //permiited devication (ms) from the expected interval (ms)
                 rpm.Calibration = RPM_CALIBRATION_GENSET2;
                 
-                //SwitchSensor oilSensor = new Chetch.Arduino.Devices.SwitchSensor(9, 250, GENSET2_ID + "_oil", OIL_SENSOR_NAME);
+                oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
                 
                 engine = new Engine(GENSET2_ID, rpm, null, temp.GetSensor(GENSET2_ID + "_temp"));
                 engine.initialise(_erdb);
