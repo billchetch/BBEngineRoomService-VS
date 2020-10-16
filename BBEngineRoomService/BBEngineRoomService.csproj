@@ -70,6 +70,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Engine.cs" />
+    <Compile Include="EngineRoomMessageSchema.cs" />
     <Compile Include="EngineRoomServiceDB.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
