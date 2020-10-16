@@ -301,7 +301,7 @@ namespace BBEngineRoomService
         {
             String desc = String.Format("Error when sampling subject {0}: {1} {2}", subject.GetType(), e.GetType(), e.Message);
             Tracing?.TraceEvent(TraceEventType.Error, 0, desc);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ERROR, subject.GetType(), desc);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ERROR, subject.GetType().ToString(), desc);
         }
         private void OnOilCheckRequired(Engine engine)
         {
