@@ -21,7 +21,7 @@ namespace BBEngineRoomService
         }
         public const int IS_RUNNING_RPM_THRESHOLD = 100;
 
-        private bool _online = false;
+        private bool _online = true;
         public bool Online
         {
             get { return _online; }
@@ -32,7 +32,7 @@ namespace BBEngineRoomService
             }
         }
 
-        private bool _running;
+        private bool _running = false;
         public bool Running
         {
             get { return _running; }
@@ -40,6 +40,7 @@ namespace BBEngineRoomService
             {
                 if (_running != value)
                 {
+                    _running = value;
                     if (_running)
                     {
                         LastOn = DateTime.Now;
