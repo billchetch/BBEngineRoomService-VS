@@ -46,7 +46,7 @@ namespace BBEngineRoomService
         } //end oil sensor
 
         public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
-
+        
         public const String INDUK_ID = "idk";
         public const String BANTU_ID = "bnt";
         public const String GENSET1_ID = "gs1";
@@ -81,7 +81,8 @@ namespace BBEngineRoomService
         {
             SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            RequiredBoards = "ER1,ER2"; // Properties.Settings.Default.RequiredBoards;
+            //RequiredBoards = "ER1,ER2"; // Properties.Settings.Default.RequiredBoards;
+            RequiredBoards = "ER3";
             MaxPingResponseTime = 100;
         }
 
