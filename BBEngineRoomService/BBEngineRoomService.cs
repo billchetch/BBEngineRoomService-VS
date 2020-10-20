@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Chetch.Arduino;
 using Chetch.Arduino.Devices.Counters;
 using Chetch.Arduino.Devices.Temperature;
+using Chetch.Arduino.Devices.RangeFinders;
 using Chetch.Arduino.Devices;
 using Chetch.Messaging;
 using System.Diagnostics;
@@ -45,6 +46,11 @@ namespace BBEngineRoomService
             public OilSensor(int pinNumber, String id) : base(pinNumber, 250, id, SENSOR_NAME) { }
         } //end oil sensor
 
+        public class WaterTank : JSN_SR04T
+        {
+            public WaterTank(int transmitPin, int receivePin, String id) : base(transmitPin, receivePin, id) { }
+        }
+
         public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
 
         public const String INDUK_ID = "idk";
@@ -81,8 +87,10 @@ namespace BBEngineRoomService
         {
             SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            RequiredBoards = "ER1,ER2"; // Properties.Settings.Default.RequiredBoards;
+            //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
+            RequiredBoards = "ER3";
             MaxPingResponseTime = 100;
+            //AutoStartADMTimer = false;
         }
 
         protected override void OnStart(string[] args)
@@ -174,6 +182,7 @@ namespace BBEngineRoomService
             Engine engine;
             RPMCounter rpm;
             OilSensor oilSensor;
+            WaterTank waterTank;
             String desc;
             
             if (adm.BoardID.Equals("ER1"))
@@ -275,6 +284,13 @@ namespace BBEngineRoomService
                 desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADDED, engine.ID, desc);
+            } else if (adm.BoardID.Equals("ER3"))
+            {
+                waterTank = new WaterTank(4, 5, "wt1");
+                waterTank.SampleInterval = 3000;
+                waterTank.SampleSize = 5;
+
+                adm.AddDevice(waterTank);
             }
         }
         
@@ -354,6 +370,11 @@ namespace BBEngineRoomService
                                 Console.WriteLine("------------------------------> Average temp {0}: {1}", sensor.ID, sensor.AverageTemperature);
                             }
                         }
+                        if(dev is WaterTank)
+                        {
+                            WaterTank wt = ((WaterTank)dev);
+                            Console.WriteLine("****************>: Water Tank distance / average distance: {0} / {1}", wt.Distance, wt.AverageDistance);
+                        }
                     }
                     else
                     {
@@ -370,6 +391,7 @@ namespace BBEngineRoomService
                             //OnOilCheckRequired(engine);
                             Console.WriteLine("+++++++++++++++> Oil Sensor {0} {1}", dev.ID, ((SwitchSensor)dev).IsOn);
                         }
+
                     }
                     break;
 
