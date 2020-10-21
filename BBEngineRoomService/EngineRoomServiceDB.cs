@@ -18,9 +18,13 @@ namespace BBEngineRoomService
             WARNING,
             ONLINE,
             OFFLINE,
-            ADDED,
-            REMOVED,
-            ERROR
+            ADD,
+            REMOVE,
+            ERROR,
+            START,
+            STOP,
+            CONNECT,
+            DISCONNECT
         }
         static public EngineRoomServiceDB Create(System.Configuration.ApplicationSettingsBase settings, String dbnameKey = null)
         {

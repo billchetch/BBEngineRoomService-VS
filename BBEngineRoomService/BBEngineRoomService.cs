@@ -98,6 +98,8 @@ namespace BBEngineRoomService
                 _timerStateLog.Interval = TIMER_STATE_LOG_INTERVAL;
                 _timerStateLog.Elapsed += OnStateLogTimer;
                 _timerStateLog.Start();
+
+                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.START, "BBEngineRoomService", "Fired up the 'service'");
             }
             catch (Exception e)
             {
@@ -213,7 +215,7 @@ namespace BBEngineRoomService
                 adm.AddDeviceGroup(engine);
                 desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADDED, engine.ID, desc);
+                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
                 //genset 2
                 rpm = new RPMCounter(8, BANTU_ID + "_rpm", "RPM");
@@ -230,7 +232,7 @@ namespace BBEngineRoomService
                 adm.AddDeviceGroup(engine);
                 desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADDED, engine.ID, desc);
+                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
             }
             else if (adm.BoardID.Equals("ER2")) //TODO: change to switch to determine which ADM we are dealing with
             {
@@ -257,7 +259,7 @@ namespace BBEngineRoomService
                 adm.AddDeviceGroup(engine);
                 desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADDED, engine.ID, desc);
+                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
                 //genset 2
                 rpm = new RPMCounter(8, GENSET2_ID + "_rpm", "RPM");
@@ -274,7 +276,7 @@ namespace BBEngineRoomService
                 adm.AddDeviceGroup(engine);
                 desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADDED, engine.ID, desc);
+                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
             }
         }
         
