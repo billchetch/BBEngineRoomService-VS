@@ -88,7 +88,8 @@ namespace BBEngineRoomService
             SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
             //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
-            RequiredBoards = "ER3";
+            RequiredBoards = "ER1,ER2"; 
+            //RequiredBoards = "ER3";
             MaxPingResponseTime = 100;
             //AutoStartADMTimer = false;
         }
@@ -441,7 +442,7 @@ namespace BBEngineRoomService
 
         protected override void ConnectADM(string port)
         {
-            base.DisconnectADM(port);
+            base.ConnectADM(port);
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.CONNECT, "BBEngineRoom", String.Format("ADM on port {0} connected", port));
         }
 
