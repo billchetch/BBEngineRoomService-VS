@@ -439,6 +439,18 @@ namespace BBEngineRoomService
             base.HandleADMMessage(message, adm);
         }
 
+        protected override void ConnectADM(string port)
+        {
+            base.DisconnectADM(port);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.CONNECT, "BBEngineRoom", String.Format("ADM on port {0} connected", port));
+        }
+
+        protected override void DisconnectADM(string port)
+        {
+            base.DisconnectADM(port);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom", String.Format("ADM on port {0} disconnected", port));
+        }
+
         //Respond to incoming commands
         public override void AddCommandHelp()
         {
