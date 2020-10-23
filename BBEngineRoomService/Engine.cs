@@ -69,7 +69,7 @@ namespace BBEngineRoomService
 
         public void initialise(EngineRoomServiceDB erdb)
         {
-            DBRow row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID);
+            DBRow row = erdb.GetFirstOnAfterLastOff(ID);
             if (row != null) LastOn = row.GetDateTime("created");
             row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
             if (row != null) LastOff = row.GetDateTime("created");
