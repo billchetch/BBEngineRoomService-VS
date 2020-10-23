@@ -12,6 +12,7 @@ using Chetch.Messaging;
 using System.Diagnostics;
 using Chetch.Utilities;
 using Chetch.Database;
+using System.Runtime.InteropServices;
 
 namespace BBEngineRoomService
 {
@@ -223,7 +224,7 @@ namespace BBEngineRoomService
                 engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
@@ -240,7 +241,7 @@ namespace BBEngineRoomService
                 engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
             }
@@ -267,7 +268,7 @@ namespace BBEngineRoomService
                 engine = new Engine(GENSET1_ID, rpm, null, temp.GetSensor(GENSET1_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
@@ -284,7 +285,7 @@ namespace BBEngineRoomService
                 engine = new Engine(GENSET2_ID, rpm, null, temp.GetSensor(GENSET2_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} .. engine is {2}", engine.ID, adm.BoardID, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
             } else if (adm.BoardID.Equals("ER3"))
@@ -453,8 +454,10 @@ namespace BBEngineRoomService
 
         protected override void DisconnectADM(string port)
         {
+            ArduinoDeviceManager adm = ADMS.ContainsKey(port) ? ADMS[port] : null;
+            String source = adm == null ? "N/A" : adm.BoardID;
             base.DisconnectADM(port);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom", String.Format("ADM on port {0} disconnected", port));
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, source, String.Format("ADM on port {0} disconnected", port));
         }
 
         //Respond to incoming commands
