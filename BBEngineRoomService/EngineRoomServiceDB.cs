@@ -88,6 +88,11 @@ namespace BBEngineRoomService
             return ce;
         }
 
+        public DBRow GetFirstOnAfterLastOff(String source)
+        {
+            return GetLatestEvent(LogEventType.ON, LogEventType.OFF, source);
+        }
+
         public long LogState(String stateSource, String stateName, Object state, String description = null)
         {
             var newRow = new DBRow();
