@@ -88,8 +88,8 @@ namespace BBEngineRoomService
             SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
             //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
-            RequiredBoards = "ER1,ER2"; 
-            //RequiredBoards = "ER3";
+            //RequiredBoards = "ER1,ER2"; 
+            RequiredBoards = "ER3";
             MaxPingResponseTime = 100;
             //AutoStartADMTimer = false;
         }
@@ -101,6 +101,8 @@ namespace BBEngineRoomService
                 Tracing?.TraceEvent(TraceEventType.Information, 0, "Connecting to Engine Room database...");
                 _erdb = EngineRoomServiceDB.Create(Properties.Settings.Default, "EngineRoomDBName");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, "Connected to Engine Room database");
+
+                _erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.CONNECT, EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom");
 
                 Tracing?.TraceEvent(TraceEventType.Information, 0, "Creating state log timer at {0} intervals", TIMER_STATE_LOG_INTERVAL);
                 _timerStateLog = new System.Timers.Timer();
@@ -287,11 +289,14 @@ namespace BBEngineRoomService
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
             } else if (adm.BoardID.Equals("ER3"))
             {
-                waterTank = new WaterTank(4, 5, "wt1");
+                /*waterTank = new WaterTank(4, 5, "wt1");
                 waterTank.SampleInterval = 3000;
                 waterTank.SampleSize = 5;
 
-                adm.AddDevice(waterTank);
+                adm.AddDevice(waterTank);*/
+
+                oilSensor = new OilSensor(4, "os1");
+                adm.AddDevice(oilSensor);
             }
         }
         
