@@ -69,7 +69,7 @@ namespace BBEngineRoomService
 
         public void initialise(EngineRoomServiceDB erdb)
         {
-            DBRow row = erdb.GetFirstOnAfterLastOff(ID);
+            DBRow row = erdb.GetFirstOnAfterLastOff(ID); //this is to allow for board resets (which will naturally create an ON event if it happens while engine is running
             if (row != null) LastOn = row.GetDateTime("created");
             row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
             if (row != null) LastOff = row.GetDateTime("created");
