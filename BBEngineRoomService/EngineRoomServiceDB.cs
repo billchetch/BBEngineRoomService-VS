@@ -40,15 +40,22 @@ namespace BBEngineRoomService
             String fields = "e.*";
             String from = "event_log e";
             String filter = null;
-            String sort = "created DESC";
+            String sort = "created {0}";
             this.AddSelectStatement("events", fields, from, filter, sort, null);
+            
+            // - Event
+            fields = "e.*";
+            from = "event_log e";
+            filter = "event_type='{0}' AND event_source='{1}' AND IF({2} >= 0, e.id < {2}, true)";
+            sort = "created DESC";
+            this.AddSelectStatement("latest-event", fields, from, filter, sort, null);
 
             // - Event
             fields = "e.*";
             from = "event_log e";
-            filter = "event_type='{0}' AND event_source='{1}' ";
-            sort = "created DESC";
-            this.AddSelectStatement("event", fields, from, filter, sort, null);
+            filter = "event_type='{0}' AND event_source='{1}' AND IF({2} >= 0, e.id > {2}, true)";
+            sort = "created ASC";
+            this.AddSelectStatement("first-event", fields, from, filter, sort, null);
 
             //Init base
             base.Initialize();
@@ -64,9 +71,27 @@ namespace BBEngineRoomService
             return Insert("event_log", newRow);
         }
 
-        public DBRow GetLatestEvent(LogEventType logEvent, String source)
+        public DBRow GetLatestEvent(LogEventType logEvent, String source, long limitId = -1)
         {
-            return SelectRow("event", "*", logEvent.ToString(), source);
+            return SelectRow("latest-event", "*", logEvent.ToString(), source, limitId.ToString());
+        }
+
+        public DBRow GetFirstEvent(LogEventType logEvent, String source, long limitId = -1)
+        {
+            return SelectRow("first-event", "*", logEvent.ToString(), source, limitId.ToString());
+        }
+
+        public DBRow GetLatestEvent(LogEventType currentEvent, LogEventType preceedingEvent, String source)
+        {
+            DBRow pe = GetLatestEvent(preceedingEvent, source);
+            long limitId = pe == null ? -1 : pe.ID;
+            DBRow ce = GetFirstEvent(currentEvent, source, limitId);
+            return ce;
+        }
+
+        public DBRow GetFirstOnAfterLastOff(String source)
+        {
+            return GetLatestEvent(LogEventType.ON, LogEventType.OFF, source);
         }
 
         public long LogState(String stateSource, String stateName, Object state, String description = null)
