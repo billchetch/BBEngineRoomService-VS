@@ -458,6 +458,16 @@ namespace BBEngineRoomService
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, source, String.Format("ADM on port {0} disconnected", port));
         }
 
+        protected override void ResetPort(string port, Exception e)
+        {
+            ArduinoDeviceManager adm = ADMS.ContainsKey(port) ? ADMS[port] : null;
+            String source = adm == null ? "N/A" : adm.BoardID;
+            base.ResetPort(port, e);
+            String reason = e == null ? "n/a" : String.Format("Exception {0} ({1}) {2}", e.GetType().ToString(), e.HResult, e.Message);
+            String desc = String.Format("ADM on port {0} reset because {1}", port, reason);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.RESET, source, desc);
+        }
+
         //Respond to incoming commands
         public override void AddCommandHelp()
         {
