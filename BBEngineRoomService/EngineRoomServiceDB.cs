@@ -24,7 +24,8 @@ namespace BBEngineRoomService
             START,
             STOP,
             CONNECT,
-            DISCONNECT
+            DISCONNECT,
+            RESET
         }
         static public EngineRoomServiceDB Create(System.Configuration.ApplicationSettingsBase settings, String dbnameKey = null)
         {
