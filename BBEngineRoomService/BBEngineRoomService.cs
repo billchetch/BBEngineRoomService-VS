@@ -83,14 +83,16 @@ namespace BBEngineRoomService
         private System.Timers.Timer _timerStateLog;
 
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
+        public bool Output2Console = false; //TODO: REMOVE THIS!!!
 
-        public BBEngineRoomService() : base("BBEngineRoom", "ADMTestServiceClient", "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
+        public BBEngineRoomService() : base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //base("BBEngineRoom", "ADMTestServiceClient", "ADMTestService", null) // // 
         {
-            SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
+            SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
             //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
             //RequiredBoards = "ER1,ER2"; 
-            RequiredBoards = "ER3";
+            RequiredBoards = "BBED1,BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+            PortSharing = true;
             MaxPingResponseTime = 100;
             //AutoStartADMTimer = false;
         }
@@ -224,7 +226,7 @@ namespace BBEngineRoomService
                 engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
@@ -241,7 +243,7 @@ namespace BBEngineRoomService
                 engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
             }
@@ -268,7 +270,7 @@ namespace BBEngineRoomService
                 engine = new Engine(GENSET1_ID, rpm, null, temp.GetSensor(GENSET1_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
@@ -285,7 +287,7 @@ namespace BBEngineRoomService
                 engine = new Engine(GENSET2_ID, rpm, null, temp.GetSensor(GENSET2_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.Port, engine.Online ? "online" : "offline");
+                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
             } else if (adm.BoardID.Equals("ER3"))
@@ -374,13 +376,13 @@ namespace BBEngineRoomService
                             foreach(var sensor in ((DS18B20Array)dev).ConnectedSensors)
                             {
                                 //outputSampleData(sensor.Sampler.GetSubjectData(sensor));
-                                Console.WriteLine("------------------------------> Average temp {0}: {1}", sensor.ID, sensor.AverageTemperature);
+                                if(Output2Console)Console.WriteLine("------------------------------> Average temp {0}: {1}", sensor.ID, sensor.AverageTemperature);
                             }
                         }
                         if(dev is WaterTank)
                         {
                             WaterTank wt = ((WaterTank)dev);
-                            Console.WriteLine("****************>: Water Tank distance / average distance: {0} / {1}", wt.Distance, wt.AverageDistance);
+                            //if(Output2Console)Console.WriteLine("****************>: Water Tank distance / average distance: {0} / {1}", wt.Distance, wt.AverageDistance);
                         }
                     }
                     else
@@ -396,7 +398,7 @@ namespace BBEngineRoomService
                         {
                             Engine engine = GetEngineForDevice(dev.ID);
                             //OnOilCheckRequired(engine);
-                            Console.WriteLine("+++++++++++++++> Oil Sensor {0} {1}", dev.ID, ((SwitchSensor)dev).IsOn);
+                            if (Output2Console) Console.WriteLine("+++++++++++++++> Oil Sensor {0} {1}", dev.ID, ((SwitchSensor)dev).IsOn);
                         }
 
                     }
@@ -411,7 +413,7 @@ namespace BBEngineRoomService
                         message.Type = MessageType.DATA; //change the type so that it's more meaingful for listeners...
 
                         //TODO: remove
-                        Console.WriteLine("===============================> RPM {0}: {1}", rpm.ID, rpm.AverageRPM);
+                        if (Output2Console) Console.WriteLine("===============================> RPM {0}: {1}", rpm.ID, rpm.AverageRPM);
 
                         //determine engine running state
                         Engine engine = GetEngineForDevice(rpm.ID);
@@ -425,7 +427,7 @@ namespace BBEngineRoomService
                                 EngineRoomServiceDB.LogEventType let = engine.Running ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF;
                                 _erdb.LogEvent(let, engine.ID, "Engine now " + let.ToString());
 
-                                //OnOilCheckRequired(engine);
+                                //OnOilCheckRequixred(engine);
                                 schema.AddEngine(engine); //add engine data to provide running/not running event changes
                             }
                         }
