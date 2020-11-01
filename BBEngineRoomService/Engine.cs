@@ -73,8 +73,7 @@ namespace BBEngineRoomService
             if (row != null) LastOn = row.GetDateTime("created");
             row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
             if (row != null) LastOff = row.GetDateTime("created");
-            row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
-
+            
             DBRow offline = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFFLINE, ID);
             DBRow online = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ONLINE, ID);
 

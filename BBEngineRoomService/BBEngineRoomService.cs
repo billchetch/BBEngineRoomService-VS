@@ -61,7 +61,7 @@ namespace BBEngineRoomService
         
         public const double RPM_CALIBRATION_BANTU = 0.47; // 17/8
         public const double RPM_CALIBRATION_INDUK = 0.47; // / 17/8;
-        public const double RPM_CALIBRATION_GENSET1 = 0.545;
+        public const double RPM_CALIBRATION_GENSET1 = 0.55;
         public const double RPM_CALIBRATION_GENSET2 = 0.56; 
         public const int RPM_SAMPLE_SIZE = 7;
         public const int RPM_SAMPLE_INTERVAL = 2000; //ms
@@ -84,16 +84,25 @@ namespace BBEngineRoomService
 
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
         public bool Output2Console = false; //TODO: REMOVE THIS!!!
+        private System.Timers.Timer _pingTimer = null; //TODO: REMOVE THIS!!!
 
-        public BBEngineRoomService() : base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //base("BBEngineRoom", "ADMTestServiceClient", "ADMTestService", null) // // 
+        public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
-            SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
-            //RequiredBoards = "ER1,ER2"; 
-            RequiredBoards = "BBED1,BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             PortSharing = true;
-            MaxPingResponseTime = 100;
+            if (PortSharing)
+            {
+                SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
+                RequiredBoards = "BBED1,BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+            }
+            else
+            {
+                SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
+                //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
+                RequiredBoards = "ER1";
+            }
+            MaxPingResponseTime = 1000;
+            Output2Console = true; //TODO: remove this
             //AutoStartADMTimer = false;
         }
 
@@ -230,7 +239,7 @@ namespace BBEngineRoomService
                 Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
-                //genset 2
+                //Bantu
                 rpm = new RPMCounter(8, BANTU_ID + "_rpm", "RPM");
                 rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
@@ -258,15 +267,15 @@ namespace BBEngineRoomService
                 adm.AddDevice(temp);
                 
                 //genset 1
-                rpm = new RPMCounter(4, GENSET1_ID + "_rpm", "RPM");
+                rpm = new RPMCounter(8, GENSET1_ID + "_rpm", "RPM");
                 rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.Calibration = RPM_CALIBRATION_GENSET1;
                 rpm.SampleIntervalDeviation = 15;
-                
+
                 //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
-                
+
                 engine = new Engine(GENSET1_ID, rpm, null, temp.GetSensor(GENSET1_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
@@ -275,15 +284,15 @@ namespace BBEngineRoomService
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
                 //genset 2
-                rpm = new RPMCounter(8, GENSET2_ID + "_rpm", "RPM");
+                rpm = new RPMCounter(4, GENSET2_ID + "_rpm", "RPM");
                 rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.SampleIntervalDeviation = 15; //permiited devication (ms) from the expected interval (ms)
                 rpm.Calibration = RPM_CALIBRATION_GENSET2;
-                
+
                 //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
-                
+
                 engine = new Engine(GENSET2_ID, rpm, null, temp.GetSensor(GENSET2_ID + "_temp"));
                 engine.initialise(_erdb);
                 adm.AddDeviceGroup(engine);
@@ -358,6 +367,27 @@ namespace BBEngineRoomService
             }
         }
 
+        protected override void OnADMDevicesConnected(ArduinoDeviceManager adm, ADMMessage message)
+        {
+            base.OnADMDevicesConnected(adm, message);
+            if(_pingTimer == null)
+            {
+                /*_pingTimer = new System.Timers.Timer();
+                _pingTimer.Interval = 1000;
+                _pingTimer.Elapsed += OnPingTimer;
+                _pingTimer.Start();*/
+            }
+        }
+
+        protected void OnPingTimer(Object sender, System.Timers.ElapsedEventArgs eventArgs)
+        {
+            foreach(var adm in ADMS.Values)
+            {
+                Console.WriteLine("Ping timer pinging {0}", adm.BoardID);
+                adm.Ping();
+            }
+        }
+
         //React to data coming from ADM
         protected override void HandleADMMessage(ADMMessage message, ArduinoDeviceManager adm)
         {
@@ -417,8 +447,8 @@ namespace BBEngineRoomService
 
                         //determine engine running state
                         Engine engine = GetEngineForDevice(rpm.ID);
-                        if (engine == null) throw new Exception("No engine found for RPM device " + rpm.ID);
-                        if (engine.Online)
+                        //if (engine == null) throw new Exception("No engine found for RPM device " + rpm.ID);
+                        if (engine != null && engine.Online)
                         {
                             bool running = rpm.AverageRPM > Engine.IS_RUNNING_RPM_THRESHOLD;
                             if (running != engine.Running)
@@ -444,6 +474,10 @@ namespace BBEngineRoomService
                         Tracing?.TraceEvent(TraceEventType.Information, 0, "Temperature array {0} on board {1} configured {2} sensors", dev.ID, adm.BoardID, ((DS18B20Array)dev).ConnectedSensors.Count);
                     }
                     break;
+
+                case MessageType.PING_RESPONSE:
+                    //Console.WriteLine("Ping received from {0} ... gives AI={1}, FM={2},  MS={3}", adm.BoardID, message.GetValue("AI"), message.GetValue("FM"), message.GetValue("MS")); ;
+                    break;
             }
             base.HandleADMMessage(message, adm);
         }
@@ -451,15 +485,13 @@ namespace BBEngineRoomService
         protected override void ConnectADM(string port)
         {
             base.ConnectADM(port);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.CONNECT, "BBEngineRoom", String.Format("ADM on port {0} connected", port));
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.CONNECT, "BBEngineRoom", String.Format("All ADMs on port {0} connected", port));
         }
 
         protected override void DisconnectADM(string port)
         {
-            ArduinoDeviceManager adm = ADMS.ContainsKey(port) ? ADMS[port] : null;
-            String source = adm == null ? "N/A" : adm.BoardID;
             base.DisconnectADM(port);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, source, String.Format("ADM on port {0} disconnected", port));
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom", String.Format("ADMs on port {0} disconnected", port));
         }
 
         protected override void ResetPort(string port, Exception e)
