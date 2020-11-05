@@ -66,6 +66,7 @@ namespace BBEngineRoomService
         public const int RPM_SAMPLE_SIZE = 7;
         public const int RPM_SAMPLE_INTERVAL = 2000; //ms
         public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_INTERVAL_PRUNE_MIN_MAX;
+        public const int RPM_SAMPLE_INTERVAL_DEVIATION = 90;
 
         public const String POMPA_CELUP_ID = "pmp_clp";
         public const String POMPA_SOLAR_ID = "pmp_sol";
@@ -84,8 +85,7 @@ namespace BBEngineRoomService
 
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
         public bool Output2Console = false; //TODO: REMOVE THIS!!!
-        private System.Timers.Timer _pingTimer = null; //TODO: REMOVE THIS!!!
-
+        
         public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
@@ -93,7 +93,7 @@ namespace BBEngineRoomService
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED1,BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
@@ -101,7 +101,6 @@ namespace BBEngineRoomService
                 //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
                 RequiredBoards = "ER1";
             }
-            MaxPingResponseTime = 1000;
             Output2Console = true; //TODO: remove this
             //AutoStartADMTimer = false;
         }
@@ -190,7 +189,7 @@ namespace BBEngineRoomService
             }
 
             adm.Tracing = Tracing;
-            //adm.Sampler.SampleProvided += HandleSampleProvided;
+            adm.Sampler.SampleProvided += HandleSampleProvided;
             adm.Sampler.SampleError += HandleSampleError;
 
             DS18B20Array temp;
@@ -227,7 +226,7 @@ namespace BBEngineRoomService
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.Calibration = RPM_CALIBRATION_INDUK;
-                rpm.SampleIntervalDeviation = 15;
+                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
 
                 //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
                 //adm.AddDevice(oilSensor);
@@ -245,7 +244,7 @@ namespace BBEngineRoomService
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.Calibration = RPM_CALIBRATION_BANTU;
-                rpm.SampleIntervalDeviation = 15;
+                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
 
                 //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
 
@@ -272,7 +271,7 @@ namespace BBEngineRoomService
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                 rpm.Calibration = RPM_CALIBRATION_GENSET1;
-                rpm.SampleIntervalDeviation = 15;
+                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
 
                 //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
 
@@ -288,7 +287,7 @@ namespace BBEngineRoomService
                 rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                 rpm.SampleSize = RPM_SAMPLE_SIZE;
                 rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
-                rpm.SampleIntervalDeviation = 15; //permiited devication (ms) from the expected interval (ms)
+                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION; //permiited devication (ms) from the expected interval (ms)
                 rpm.Calibration = RPM_CALIBRATION_GENSET2;
 
                 //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
@@ -331,11 +330,24 @@ namespace BBEngineRoomService
             Console.WriteLine("SampleDuration: {0}", sd.DurationTotal);
         }
 
+        private void HandleSampleProvided(ISampleSubject subject)
+        {
+            Sampler.SubjectData sd = ((ArduinoDevice)subject).Mgr.Sampler.GetSubjectData(subject);
+            outputSampleData(sd);
+        }
+
         private void HandleSampleError(ISampleSubject subject, Exception e)
         {
             String desc = String.Format("Error when sampling subject {0}: {1} {2}", subject.GetType(), e.GetType(), e.Message);
-            Tracing?.TraceEvent(TraceEventType.Error, 0, desc);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ERROR, subject.GetType().ToString(), desc);
+            String source;
+            if(subject is ArduinoDevice)
+            {
+                source = ((ArduinoDevice)subject).ID;
+            } else
+            {
+                source = subject.GetType().ToString();
+            }
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ERROR, source, desc);
         }
         private void OnOilCheckRequired(Engine engine)
         {
@@ -370,22 +382,6 @@ namespace BBEngineRoomService
         protected override void OnADMDevicesConnected(ArduinoDeviceManager adm, ADMMessage message)
         {
             base.OnADMDevicesConnected(adm, message);
-            if(_pingTimer == null)
-            {
-                /*_pingTimer = new System.Timers.Timer();
-                _pingTimer.Interval = 1000;
-                _pingTimer.Elapsed += OnPingTimer;
-                _pingTimer.Start();*/
-            }
-        }
-
-        protected void OnPingTimer(Object sender, System.Timers.ElapsedEventArgs eventArgs)
-        {
-            foreach(var adm in ADMS.Values)
-            {
-                Console.WriteLine("Ping timer pinging {0}", adm.BoardID);
-                adm.Ping();
-            }
         }
 
         //React to data coming from ADM
