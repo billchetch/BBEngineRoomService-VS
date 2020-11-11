@@ -54,6 +54,10 @@ namespace BBEngineRoomService
 
         public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
 
+        public const byte BOARD_ER1 = 1;
+        public const byte BOARD_ER2 = 2;
+        public const byte BOARD_ER3 = 3;
+
         public const String INDUK_ID = "idk";
         public const String BANTU_ID = "bnt";
         public const String GENSET1_ID = "gs1";
@@ -65,14 +69,14 @@ namespace BBEngineRoomService
         public const double RPM_CALIBRATION_GENSET2 = 0.56; 
         public const int RPM_SAMPLE_SIZE = 7;
         public const int RPM_SAMPLE_INTERVAL = 2000; //ms
-        public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_INTERVAL_PRUNE_MIN_MAX;
+        public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_COUNT_PRUNE_MIN_MAX;
         public const int RPM_SAMPLE_INTERVAL_DEVIATION = 90;
 
         public const String POMPA_CELUP_ID = "pmp_clp";
         public const String POMPA_SOLAR_ID = "pmp_sol";
 
 
-        public const int TEMP_SAMPLE_INTERVAL = 20000; //temp changes very slowly in the engine so no need to sample frequently
+        public const int TEMP_SAMPLE_INTERVAL = 7000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
         
         private EngineRoomServiceDB _erdb;
@@ -89,7 +93,7 @@ namespace BBEngineRoomService
         public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            PortSharing = true;
+            PortSharing = false;
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
@@ -98,8 +102,7 @@ namespace BBEngineRoomService
             else
             {
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
-                //RequiredBoards = "ER1,ER2,ER3"; // Properties.Settings.Default.RequiredBoards;
-                RequiredBoards = "ER1";
+                RequiredBoards = "2";
             }
             Output2Console = true; //TODO: remove this
             //AutoStartADMTimer = false;
@@ -182,7 +185,7 @@ namespace BBEngineRoomService
 
         protected override void AddADMDevices(ArduinoDeviceManager adm, ADMMessage message)
         {
-            if (adm == null || adm.BoardID == null)
+            if (adm == null || adm.BoardID == 0)
             {
                 Tracing?.TraceEvent(TraceEventType.Error, 0, "adm is null or does not have a BoardID value");
                 return;
@@ -199,116 +202,120 @@ namespace BBEngineRoomService
             WaterTank waterTank;
             String desc;
             
-            if (adm.BoardID.Equals("ER1"))
+            switch(adm.BoardID)
             {
-                //Pompa celup
-                /*_pompaCelup = new Pump(6, POMPA_CELUP_ID);
-                _pompaCelup.initialise(_erdb);
-                adm.AddDevice(_pompaCelup);
+
+                case BOARD_ER1:
+                    //Pompa celup
+                    /*_pompaCelup = new Pump(6, POMPA_CELUP_ID);
+                    _pompaCelup.initialise(_erdb);
+                    adm.AddDevice(_pompaCelup);
                 
-                //Pompa solar
-                /*_pompaSolar = new Pump(5, POMPA_SOLAR_ID);
-                _pompaSolar.initialise(_erdb);
-                adm.AddDevice(_pompaSolar);
-                */
+                    //Pompa solar
+                    /*_pompaSolar = new Pump(5, POMPA_SOLAR_ID);
+                    _pompaSolar.initialise(_erdb);
+                    adm.AddDevice(_pompaSolar);
+                    */
 
-                //temperature array for all engines connected to a board
-                temp = new DS18B20Array(5, "temp_arr");
-                temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
-                temp.SampleSize = TEMP_SAMPLE_SIZE;
-                temp.AddSensor(INDUK_ID + "_temp");
-                temp.AddSensor(BANTU_ID + "_temp");
-                adm.AddDevice(temp);
+                    //temperature array for all engines connected to a board
+                    temp = new DS18B20Array(5, "temp_arr");
+                    temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
+                    temp.SampleSize = TEMP_SAMPLE_SIZE;
+                    temp.AddSensor(INDUK_ID + "_temp");
+                    temp.AddSensor(BANTU_ID + "_temp");
+                    adm.AddDevice(temp);
                 
-                //Induk
-                rpm = new RPMCounter(4, INDUK_ID + "_rpm", "RPM");
-                rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
-                rpm.SampleSize = RPM_SAMPLE_SIZE;
-                rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
-                rpm.Calibration = RPM_CALIBRATION_INDUK;
-                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
+                    //Induk
+                    rpm = new RPMCounter(4, INDUK_ID + "_rpm", "RPM");
+                    rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
+                    rpm.SampleSize = RPM_SAMPLE_SIZE;
+                    rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
+                    rpm.Calibration = RPM_CALIBRATION_INDUK;
+                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
 
-                //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
-                //adm.AddDevice(oilSensor);
+                    //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
+                    //adm.AddDevice(oilSensor);
 
-                engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
-                engine.initialise(_erdb);
-                adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
-                Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
+                    engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
+                    engine.initialise(_erdb);
+                    adm.AddDeviceGroup(engine);
+                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
+                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
-                //Bantu
-                rpm = new RPMCounter(8, BANTU_ID + "_rpm", "RPM");
-                rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
-                rpm.SampleSize = RPM_SAMPLE_SIZE;
-                rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
-                rpm.Calibration = RPM_CALIBRATION_BANTU;
-                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
+                    //Bantu
+                    rpm = new RPMCounter(8, BANTU_ID + "_rpm", "RPM");
+                    rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
+                    rpm.SampleSize = RPM_SAMPLE_SIZE;
+                    rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
+                    rpm.Calibration = RPM_CALIBRATION_BANTU;
+                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
 
-                //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
+                    //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
 
-                engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
-                engine.initialise(_erdb);
-                adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
-                Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
-            }
-            else if (adm.BoardID.Equals("ER2")) //TODO: change to switch to determine which ADM we are dealing with
-            {
-                //temperature array for all engines connected to a board
-                temp = new DS18B20Array(5, "temp_arr");
-                temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
-                temp.SampleSize = TEMP_SAMPLE_SIZE;
-                temp.AddSensor(GENSET2_ID + "_temp");
-                temp.AddSensor(GENSET1_ID + "_temp");
-                adm.AddDevice(temp);
+                    engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
+                    engine.initialise(_erdb);
+                    adm.AddDeviceGroup(engine);
+                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
+                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
+                    break;
+
+                case BOARD_ER2:
+                    //temperature array for all engines connected to a board
+                    temp = new DS18B20Array(5, "temp_arr");
+                    temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
+                    temp.SampleSize = TEMP_SAMPLE_SIZE;
+                    temp.AddSensor(GENSET2_ID + "_temp");
+                    temp.AddSensor(GENSET1_ID + "_temp");
+                    adm.AddDevice(temp);
                 
-                //genset 1
-                rpm = new RPMCounter(8, GENSET1_ID + "_rpm", "RPM");
-                rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
-                rpm.SampleSize = RPM_SAMPLE_SIZE;
-                rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
-                rpm.Calibration = RPM_CALIBRATION_GENSET1;
-                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
+                    //genset 1
+                    rpm = new RPMCounter(8, GENSET1_ID + "_rpm", "RPM");
+                    rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
+                    rpm.SampleSize = RPM_SAMPLE_SIZE;
+                    rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
+                    rpm.Calibration = RPM_CALIBRATION_GENSET1;
+                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
 
-                //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
+                    oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
 
-                engine = new Engine(GENSET1_ID, rpm, null, temp.GetSensor(GENSET1_ID + "_temp"));
-                engine.initialise(_erdb);
-                adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
-                Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
+                    engine = new Engine(GENSET1_ID, rpm, oilSensor, temp.GetSensor(GENSET1_ID + "_temp"));
+                    engine.initialise(_erdb);
+                    adm.AddDeviceGroup(engine);
+                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
+                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
-                //genset 2
-                rpm = new RPMCounter(4, GENSET2_ID + "_rpm", "RPM");
-                rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
-                rpm.SampleSize = RPM_SAMPLE_SIZE;
-                rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
-                rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION; //permiited devication (ms) from the expected interval (ms)
-                rpm.Calibration = RPM_CALIBRATION_GENSET2;
+                    //genset 2
+                    rpm = new RPMCounter(4, GENSET2_ID + "_rpm", "RPM");
+                    rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
+                    rpm.SampleSize = RPM_SAMPLE_SIZE;
+                    rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
+                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION; //permiited devication (ms) from the expected interval (ms)
+                    rpm.Calibration = RPM_CALIBRATION_GENSET2;
 
-                //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
+                    oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
 
-                engine = new Engine(GENSET2_ID, rpm, null, temp.GetSensor(GENSET2_ID + "_temp"));
-                engine.initialise(_erdb);
-                adm.AddDeviceGroup(engine);
-                desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
-                Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
-            } else if (adm.BoardID.Equals("ER3"))
-            {
-                /*waterTank = new WaterTank(4, 5, "wt1");
-                waterTank.SampleInterval = 3000;
-                waterTank.SampleSize = 5;
+                    engine = new Engine(GENSET2_ID, rpm, oilSensor, temp.GetSensor(GENSET2_ID + "_temp"));
+                    engine.initialise(_erdb);
+                    adm.AddDeviceGroup(engine);
+                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
+                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
+                    break;
 
-                adm.AddDevice(waterTank);*/
+                case BOARD_ER3:
+                    /*waterTank = new WaterTank(4, 5, "wt1");
+                    waterTank.SampleInterval = 3000;
+                    waterTank.SampleSize = 5;
 
-                oilSensor = new OilSensor(4, "os1");
-                adm.AddDevice(oilSensor);
-            }
+                    adm.AddDevice(waterTank);*/
+
+                    oilSensor = new OilSensor(4, "os1");
+                    adm.AddDevice(oilSensor);
+                    break;
+            } //end board switch
         }
         
         private void outputSampleData(Sampler.SubjectData sd)
@@ -330,9 +337,9 @@ namespace BBEngineRoomService
             Console.WriteLine("SampleDuration: {0}", sd.DurationTotal);
         }
 
-        private void HandleSampleProvided(ISampleSubject subject)
+        private void HandleSampleProvided(Sampler sampler, ISampleSubject subject)
         {
-            Sampler.SubjectData sd = ((ArduinoDevice)subject).Mgr.Sampler.GetSubjectData(subject);
+            Sampler.SubjectData sd = sampler.GetSubjectData(subject);
             outputSampleData(sd);
         }
 
@@ -488,16 +495,6 @@ namespace BBEngineRoomService
         {
             base.DisconnectADM(port);
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom", String.Format("ADMs on port {0} disconnected", port));
-        }
-
-        protected override void ResetPort(string port, Exception e)
-        {
-            ArduinoDeviceManager adm = ADMS.ContainsKey(port) ? ADMS[port] : null;
-            String source = adm == null ? "N/A" : adm.BoardID;
-            base.ResetPort(port, e);
-            String reason = e == null ? "n/a" : String.Format("Exception {0} ({1}) {2}", e.GetType().ToString(), e.HResult, e.Message);
-            String desc = String.Format("ADM on port {0} reset because {1}", port, reason);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.RESET, source, desc);
         }
 
         //Respond to incoming commands
