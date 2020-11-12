@@ -67,7 +67,7 @@ namespace BBEngineRoomService
         public const double RPM_CALIBRATION_INDUK = 0.47; // / 17/8;
         public const double RPM_CALIBRATION_GENSET1 = 0.55;
         public const double RPM_CALIBRATION_GENSET2 = 0.56; 
-        public const int RPM_SAMPLE_SIZE = 7;
+        public const int RPM_SAMPLE_SIZE = 5;
         public const int RPM_SAMPLE_INTERVAL = 2000; //ms
         public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_COUNT_PRUNE_MIN_MAX;
         public const int RPM_SAMPLE_INTERVAL_DEVIATION = 90;
@@ -76,7 +76,7 @@ namespace BBEngineRoomService
         public const String POMPA_SOLAR_ID = "pmp_sol";
 
 
-        public const int TEMP_SAMPLE_INTERVAL = 20000; //temp changes very slowly in the engine so no need to sample frequently
+        public const int TEMP_SAMPLE_INTERVAL = 10000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
         
         private EngineRoomServiceDB _erdb;
@@ -93,17 +93,19 @@ namespace BBEngineRoomService
         public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            PortSharing = true;
+            PortSharing = false;
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED1";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
                 RequiredBoards = "2";
             }
+
+            ADMInactivityTimeout = ADM_INACTIVITY_TIMEOUT; //default of 10,000
 
             Output2Console = true; //TODO: remove this
             //AutoStartADMTimer = false;
@@ -219,7 +221,7 @@ namespace BBEngineRoomService
                     */
 
                     //temperature array for all engines connected to a board
-                    temp = new DS18B20Array(5, "temp_arr");
+                    temp = new DS18B20Array(4, "temp_arr");
                     temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                     temp.SampleSize = TEMP_SAMPLE_SIZE;
                     temp.AddSensor(INDUK_ID + "_temp");
@@ -227,17 +229,15 @@ namespace BBEngineRoomService
                     adm.AddDevice(temp);
                 
                     //Induk
-                    rpm = new RPMCounter(4, INDUK_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(5, INDUK_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_INDUK;
-                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
-
-                    //oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
-                    //adm.AddDevice(oilSensor);
-
-                    engine = new Engine(INDUK_ID, rpm, null, temp.GetSensor(INDUK_ID + "_temp"));
+                    
+                    oilSensor = new OilSensor(8, INDUK_ID + "_oil");
+                    
+                    engine = new Engine(INDUK_ID, rpm, oilSensor, temp.GetSensor(INDUK_ID + "_temp"));
                     engine.initialise(_erdb);
                     adm.AddDeviceGroup(engine);
                     desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
@@ -245,16 +245,15 @@ namespace BBEngineRoomService
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
                     //Bantu
-                    rpm = new RPMCounter(8, BANTU_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(6, BANTU_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_BANTU;
-                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
+                    
+                    oilSensor = new OilSensor(9, BANTU_ID + "_oil");
 
-                    //oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
-
-                    engine = new Engine(BANTU_ID, rpm, null, temp.GetSensor(BANTU_ID + "_temp"));
+                    engine = new Engine(BANTU_ID, rpm, oilSensor, temp.GetSensor(BANTU_ID + "_temp"));
                     engine.initialise(_erdb);
                     adm.AddDeviceGroup(engine);
                     desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
@@ -264,7 +263,7 @@ namespace BBEngineRoomService
 
                 case BOARD_ER2:
                     //temperature array for all engines connected to a board
-                    temp = new DS18B20Array(8, "temp_arr");
+                    temp = new DS18B20Array(9, "temp_arr");
                     temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                     temp.SampleSize = TEMP_SAMPLE_SIZE;
                     temp.AddSensor(GENSET2_ID + "_temp");
@@ -272,14 +271,13 @@ namespace BBEngineRoomService
                     adm.AddDevice(temp);
                 
                     //genset 1
-                    rpm = new RPMCounter(9, GENSET1_ID + "_rpm", "RPM");
+                    /*rpm = new RPMCounter(5, GENSET1_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_GENSET1;
-                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
-
-                    oilSensor = new OilSensor(4, GENSET1_ID + "_oil");
+                    
+                    oilSensor = new OilSensor(8, GENSET1_ID + "_oil");
 
                     engine = new Engine(GENSET1_ID, rpm, oilSensor, temp.GetSensor(GENSET1_ID + "_temp"));
                     engine.initialise(_erdb);
@@ -289,21 +287,20 @@ namespace BBEngineRoomService
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
                     //genset 2
-                    rpm = new RPMCounter(10, GENSET2_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(6, GENSET2_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
-                    rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION; //permiited devication (ms) from the expected interval (ms)
                     rpm.Calibration = RPM_CALIBRATION_GENSET2;
 
-                    oilSensor = new OilSensor(5, GENSET2_ID + "_oil");
+                    oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
 
                     engine = new Engine(GENSET2_ID, rpm, oilSensor, temp.GetSensor(GENSET2_ID + "_temp"));
                     engine.initialise(_erdb);
                     adm.AddDeviceGroup(engine);
                     desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                     Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);*/
                     break;
 
                 case BOARD_ER3:
@@ -447,7 +444,7 @@ namespace BBEngineRoomService
                         message.Type = MessageType.DATA; //change the type so that it's more meaingful for listeners...
 
                         //TODO: remove
-                        if (Output2Console) Console.WriteLine("===============================> RPM {0}: {1}", rpm.ID, rpm.AverageRPM);
+                        //if (Output2Console) Console.WriteLine("===============================> RPM {0}: {1}", rpm.ID, rpm.AverageRPM);
 
                         //determine engine running state
                         Engine engine = GetEngineForDevice(rpm.ID);
@@ -502,7 +499,7 @@ namespace BBEngineRoomService
         {
             bool success = base.OnADMInactivityTimeout(adm, msQuiet);
             String desc = String.Format("ADM (BDID={0}) @ {1} had not received a message in {2} ms. Clearing success = {3}", adm.PortAndNodeID, adm.BoardID, msQuiet, success);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType., "BBEngineRoom", desc);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.WARNING, "BBEngineRoom", desc);
 
             return success;
         }
