@@ -76,7 +76,7 @@ namespace BBEngineRoomService
         public const String POMPA_SOLAR_ID = "pmp_sol";
 
 
-        public const int TEMP_SAMPLE_INTERVAL = 7000; //temp changes very slowly in the engine so no need to sample frequently
+        public const int TEMP_SAMPLE_INTERVAL = 20000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
         
         private EngineRoomServiceDB _erdb;
@@ -93,17 +93,18 @@ namespace BBEngineRoomService
         public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            PortSharing = false;
+            PortSharing = true;
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED1";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
                 RequiredBoards = "2";
             }
+
             Output2Console = true; //TODO: remove this
             //AutoStartADMTimer = false;
         }
@@ -263,7 +264,7 @@ namespace BBEngineRoomService
 
                 case BOARD_ER2:
                     //temperature array for all engines connected to a board
-                    temp = new DS18B20Array(5, "temp_arr");
+                    temp = new DS18B20Array(8, "temp_arr");
                     temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                     temp.SampleSize = TEMP_SAMPLE_SIZE;
                     temp.AddSensor(GENSET2_ID + "_temp");
@@ -271,14 +272,14 @@ namespace BBEngineRoomService
                     adm.AddDevice(temp);
                 
                     //genset 1
-                    rpm = new RPMCounter(8, GENSET1_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(9, GENSET1_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_GENSET1;
                     rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION;
 
-                    oilSensor = new OilSensor(6, GENSET1_ID + "_oil");
+                    oilSensor = new OilSensor(4, GENSET1_ID + "_oil");
 
                     engine = new Engine(GENSET1_ID, rpm, oilSensor, temp.GetSensor(GENSET1_ID + "_temp"));
                     engine.initialise(_erdb);
@@ -288,14 +289,14 @@ namespace BBEngineRoomService
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
                     //genset 2
-                    rpm = new RPMCounter(4, GENSET2_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(10, GENSET2_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.SampleIntervalDeviation = RPM_SAMPLE_INTERVAL_DEVIATION; //permiited devication (ms) from the expected interval (ms)
                     rpm.Calibration = RPM_CALIBRATION_GENSET2;
 
-                    oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
+                    oilSensor = new OilSensor(5, GENSET2_ID + "_oil");
 
                     engine = new Engine(GENSET2_ID, rpm, oilSensor, temp.GetSensor(GENSET2_ID + "_temp"));
                     engine.initialise(_erdb);
@@ -495,6 +496,15 @@ namespace BBEngineRoomService
         {
             base.DisconnectADM(port);
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom", String.Format("ADMs on port {0} disconnected", port));
+        }
+
+        protected override bool OnADMInactivityTimeout(ArduinoDeviceManager adm, long msQuiet)
+        {
+            bool success = base.OnADMInactivityTimeout(adm, msQuiet);
+            String desc = String.Format("ADM (BDID={0}) @ {1} had not received a message in {2} ms. Clearing success = {3}", adm.PortAndNodeID, adm.BoardID, msQuiet, success);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType., "BBEngineRoom", desc);
+
+            return success;
         }
 
         //Respond to incoming commands

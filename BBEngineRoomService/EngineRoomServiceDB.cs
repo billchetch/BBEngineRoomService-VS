@@ -21,6 +21,7 @@ namespace BBEngineRoomService
             ADD,
             REMOVE,
             ERROR,
+            INFO,
             START,
             STOP,
             CONNECT,
