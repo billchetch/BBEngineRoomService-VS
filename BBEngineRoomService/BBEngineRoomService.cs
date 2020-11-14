@@ -76,7 +76,7 @@ namespace BBEngineRoomService
         public const String POMPA_SOLAR_ID = "pmp_sol";
 
 
-        public const int TEMP_SAMPLE_INTERVAL = 10000; //temp changes very slowly in the engine so no need to sample frequently
+        public const int TEMP_SAMPLE_INTERVAL = 5000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
         
         private EngineRoomServiceDB _erdb;
@@ -102,10 +102,10 @@ namespace BBEngineRoomService
             else
             {
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
-                RequiredBoards = "2";
+                RequiredBoards = "3";
             }
 
-            ADMInactivityTimeout = ADM_INACTIVITY_TIMEOUT; //default of 10,000
+            ADMInactivityTimeout = 3*ADM_INACTIVITY_TIMEOUT; //default of 10,000
 
             Output2Console = true; //TODO: remove this
             //AutoStartADMTimer = false;
@@ -263,7 +263,7 @@ namespace BBEngineRoomService
 
                 case BOARD_ER2:
                     //temperature array for all engines connected to a board
-                    temp = new DS18B20Array(9, "temp_arr");
+                    temp = new DS18B20Array(8, "temp_arr");
                     temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                     temp.SampleSize = TEMP_SAMPLE_SIZE;
                     temp.AddSensor(GENSET2_ID + "_temp");
@@ -304,14 +304,14 @@ namespace BBEngineRoomService
                     break;
 
                 case BOARD_ER3:
-                    /*waterTank = new WaterTank(4, 5, "wt1");
+                    waterTank = new WaterTank(4, 5, "wt1");
                     waterTank.SampleInterval = 3000;
                     waterTank.SampleSize = 5;
 
-                    adm.AddDevice(waterTank);*/
+                    adm.AddDevice(waterTank);
 
-                    oilSensor = new OilSensor(4, "os1");
-                    adm.AddDevice(oilSensor);
+                    /*oilSensor = new OilSensor(4, "os1");
+                    adm.AddDevice(oilSensor);*/
                     break;
             } //end board switch
         }
@@ -472,7 +472,7 @@ namespace BBEngineRoomService
                     dev = adm.GetDeviceByBoardID(message.TargetID);
                     if (dev is DS18B20Array)
                     {
-                        Tracing?.TraceEvent(TraceEventType.Information, 0, "Temperature array {0} on board {1} configured {2} sensors", dev.ID, adm.BoardID, ((DS18B20Array)dev).ConnectedSensors.Count);
+                        Tracing?.TraceEvent(TraceEventType.Information, 0, "Temperature array {0} on board {1} configured {2} sensors on one wire pin {3}", dev.ID, adm.BoardID, ((DS18B20Array)dev).ConnectedSensors.Count, message.GetInt(DS18B20Array.PARAM_ONE_WIRE_PIN));
                     }
                     break;
 
