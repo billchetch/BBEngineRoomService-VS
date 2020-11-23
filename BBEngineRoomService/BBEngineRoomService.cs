@@ -101,7 +101,7 @@ namespace BBEngineRoomService
             else
             {
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
-                RequiredBoards = "3";
+                RequiredBoards = "1";
             }
 
             ADMInactivityTimeout = ADM_INACTIVITY_TIMEOUT; //default of 10,000
@@ -309,7 +309,11 @@ namespace BBEngineRoomService
                     waterTank = new WaterTank(4, 5, "wt1");
                     waterTank.SampleInterval = 6000;
                     waterTank.SampleSize = 5;
+                    adm.AddDevice(waterTank);
 
+                    waterTank = new WaterTank(6, 7, "wt2");
+                    waterTank.SampleInterval = 3000;
+                    waterTank.SampleSize = 5;
                     adm.AddDevice(waterTank);
 
                     waterTank = new WaterTank(6, 7, "wt2");
