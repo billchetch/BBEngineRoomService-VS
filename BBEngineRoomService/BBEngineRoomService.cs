@@ -27,7 +27,7 @@ namespace BBEngineRoomService
             public void initialise(EngineRoomServiceDB erdb)
             {
                 //get latest data
-                DBRow row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID);
+                DBRow row = erdb.GetFirstOnAfterLastOff(ID); //to allow for reconnections which will naturally create an ON evnt
                 if (row != null)
                 {
                     LastOn = row.GetDateTime("created");
@@ -68,15 +68,14 @@ namespace BBEngineRoomService
         public const double RPM_CALIBRATION_GENSET1 = 0.55;
         public const double RPM_CALIBRATION_GENSET2 = 0.56; 
         public const int RPM_SAMPLE_SIZE = 5;
-        public const int RPM_SAMPLE_INTERVAL = 2000; //ms
+        public const int RPM_SAMPLE_INTERVAL = 4000; //ms
         public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_COUNT_PRUNE_MIN_MAX;
-        public const int RPM_SAMPLE_INTERVAL_DEVIATION = 90;
-
+        
         public const String POMPA_CELUP_ID = "pmp_clp";
         public const String POMPA_SOLAR_ID = "pmp_sol";
 
 
-        public const int TEMP_SAMPLE_INTERVAL = 5000; //temp changes very slowly in the engine so no need to sample frequently
+        public const int TEMP_SAMPLE_INTERVAL = 20000; //temp changes very slowly in the engine so no need to sample frequently
         public const int TEMP_SAMPLE_SIZE = 3;
         
         private EngineRoomServiceDB _erdb;
@@ -93,11 +92,11 @@ namespace BBEngineRoomService
         public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            PortSharing = false;
+            PortSharing = true;
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED2";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED1,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
@@ -105,7 +104,10 @@ namespace BBEngineRoomService
                 RequiredBoards = "3";
             }
 
-            ADMInactivityTimeout = 3*ADM_INACTIVITY_TIMEOUT; //default of 10,000
+            ADMInactivityTimeout = ADM_INACTIVITY_TIMEOUT; //default of 10,000
+
+            Sampler.SampleProvided += HandleSampleProvided;
+            Sampler.SampleError += HandleSampleError;
 
             Output2Console = true; //TODO: remove this
             //AutoStartADMTimer = false;
@@ -155,6 +157,8 @@ namespace BBEngineRoomService
             List<Engine> engines = new List<Engine>();
             foreach (var adm in ADMS.Values)
             {
+                if (adm == null) continue;
+
                 foreach (var dg in adm.DeviceGroups)
                 {
                     if (dg is Engine)
@@ -195,9 +199,7 @@ namespace BBEngineRoomService
             }
 
             adm.Tracing = Tracing;
-            adm.Sampler.SampleProvided += HandleSampleProvided;
-            adm.Sampler.SampleError += HandleSampleError;
-
+            
             DS18B20Array temp;
             Engine engine;
             RPMCounter rpm;
@@ -207,27 +209,26 @@ namespace BBEngineRoomService
             
             switch(adm.BoardID)
             {
-
                 case BOARD_ER1:
-                    //Pompa celup
-                    /*_pompaCelup = new Pump(6, POMPA_CELUP_ID);
-                    _pompaCelup.initialise(_erdb);
-                    adm.AddDevice(_pompaCelup);
-                
-                    //Pompa solar
-                    /*_pompaSolar = new Pump(5, POMPA_SOLAR_ID);
-                    _pompaSolar.initialise(_erdb);
-                    adm.AddDevice(_pompaSolar);
-                    */
-
-                    //temperature array for all engines connected to a board
+                    //Temperature array for all engines connected to a board
+                    //Important!: this must come first as it disrupts subsequent messages if not first
                     temp = new DS18B20Array(4, "temp_arr");
                     temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
                     temp.SampleSize = TEMP_SAMPLE_SIZE;
                     temp.AddSensor(INDUK_ID + "_temp");
                     temp.AddSensor(BANTU_ID + "_temp");
                     adm.AddDevice(temp);
-                
+
+                    //Pompa celup
+                    _pompaCelup = new Pump(10, POMPA_CELUP_ID);
+                    _pompaCelup.initialise(_erdb);
+                    adm.AddDevice(_pompaCelup);
+
+                    //Pompa solar
+                    _pompaSolar = new Pump(11, POMPA_SOLAR_ID);
+                    _pompaSolar.initialise(_erdb);
+                    adm.AddDevice(_pompaSolar);
+
                     //Induk
                     rpm = new RPMCounter(5, INDUK_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
@@ -243,7 +244,7 @@ namespace BBEngineRoomService
                     desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                     Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
-
+                    
                     //Bantu
                     rpm = new RPMCounter(6, BANTU_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
@@ -259,24 +260,25 @@ namespace BBEngineRoomService
                     desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                     Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
+
                     break;
 
                 case BOARD_ER2:
                     //temperature array for all engines connected to a board
-                    temp = new DS18B20Array(8, "temp_arr");
-                    temp.SampleInterval = TEMP_SAMPLE_INTERVAL;
+                    temp = new DS18B20Array(4, "temp_arr");
+                    temp.SampleInterval = 2*TEMP_SAMPLE_INTERVAL;
                     temp.SampleSize = TEMP_SAMPLE_SIZE;
                     temp.AddSensor(GENSET2_ID + "_temp");
                     temp.AddSensor(GENSET1_ID + "_temp");
                     adm.AddDevice(temp);
                 
                     //genset 1
-                    /*rpm = new RPMCounter(5, GENSET1_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(5, GENSET1_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_GENSET1;
-                    
+
                     oilSensor = new OilSensor(8, GENSET1_ID + "_oil");
 
                     engine = new Engine(GENSET1_ID, rpm, oilSensor, temp.GetSensor(GENSET1_ID + "_temp"));
@@ -300,12 +302,18 @@ namespace BBEngineRoomService
                     adm.AddDeviceGroup(engine);
                     desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Online ? "online" : "offline");
                     Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);*/
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
                     break;
 
                 case BOARD_ER3:
                     waterTank = new WaterTank(4, 5, "wt1");
-                    waterTank.SampleInterval = 3000;
+                    waterTank.SampleInterval = 6000;
+                    waterTank.SampleSize = 5;
+
+                    adm.AddDevice(waterTank);
+
+                    waterTank = new WaterTank(6, 7, "wt2");
+                    waterTank.SampleInterval = 6000;
                     waterTank.SampleSize = 5;
 
                     adm.AddDevice(waterTank);
@@ -338,7 +346,7 @@ namespace BBEngineRoomService
         private void HandleSampleProvided(Sampler sampler, ISampleSubject subject)
         {
             Sampler.SubjectData sd = sampler.GetSubjectData(subject);
-            outputSampleData(sd);
+            //outputSampleData(sd);
         }
 
         private void HandleSampleError(ISampleSubject subject, Exception e)
@@ -360,15 +368,15 @@ namespace BBEngineRoomService
             Message message = null;
             String msg = null;
             switch(engine.CheckOil()){
-                case Engine.OilState.LEAK:
-                    msg = "Oil leak detected";
+                case Engine.OilState.NO_PRESSURE:
+                    msg = "Oil pressure drop detected";
                     message = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(engine.OilSensor.ID, BBAlarmsService.AlarmState.CRITICAL, msg);
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
                     break;
                 case Engine.OilState.NORMAL:
                     msg = "Oil state normal";
                     message = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(engine.OilSensor.ID, BBAlarmsService.AlarmState.OFF, msg);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT_OFF, engine.OilSensor.ID, msg);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.INFO, engine.OilSensor.ID, msg);
                     break;
                 case Engine.OilState.SENSOR_FAULT:
                     msg = "Oil sensor faulty";
@@ -387,6 +395,25 @@ namespace BBEngineRoomService
         protected override void OnADMDevicesConnected(ArduinoDeviceManager adm, ADMMessage message)
         {
             base.OnADMDevicesConnected(adm, message);
+
+            /*if (adm.NodeID != "BBED1")
+            {
+                monitor = false;
+                Task.Run(() =>
+                {
+                    System.Threading.Thread.Sleep(1000);
+                    //DisconnectADM(adm.Port, adm.NodeID);
+                    adm.Connection.Close();
+                });
+
+                //((Chetch.Arduino.XBee.XBeeFirmataSerialConnection)adm.Connection).DetachHandlers();
+
+                if(adm.NodeID == "BBED3")
+                {
+                    System.Threading.Thread.Sleep(1000);
+                    Sampler.Start();
+                }
+            }*/
         }
 
         //React to data coming from ADM
@@ -423,13 +450,23 @@ namespace BBEngineRoomService
                         {
                             schema.AddPompaCelup(_pompaCelup);
                             _erdb.LogEvent(_pompaCelup.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, _pompaCelup.ID, "Pompa Celup");
+                            if (Output2Console) Console.WriteLine("+++++++++++++++> Pump {0} {1}", dev.ID, _pompaCelup.IsOn);
+                        }
+
+                        if (dev == _pompaSolar)
+                        {
+                            //schema.AddPop(_pompaCelup);
+                            _erdb.LogEvent(_pompaSolar.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, _pompaSolar.ID, "Pompa Solar");
+                            if (Output2Console) Console.WriteLine("+++++++++++++++> Pump {0} {1}", dev.ID, _pompaSolar.IsOn);
                         }
 
                         if (dev is OilSensor)
                         {
-                            Engine engine = GetEngineForDevice(dev.ID);
+                            OilSensor os = (OilSensor)dev;
+                            _erdb.LogEvent(os.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, os.ID, "Oil Sensor");
+                            Engine engine = GetEngineForDevice(os.ID);
                             //OnOilCheckRequired(engine);
-                            if (Output2Console) Console.WriteLine("+++++++++++++++> Oil Sensor {0} {1}", dev.ID, ((SwitchSensor)dev).IsOn);
+                            if (Output2Console) Console.WriteLine("+++++++++++++++> Oil Sensor {0} {1}", os.ID, os.IsOn);
                         }
 
                     }
@@ -444,7 +481,7 @@ namespace BBEngineRoomService
                         message.Type = MessageType.DATA; //change the type so that it's more meaingful for listeners...
 
                         //TODO: remove
-                        //if (Output2Console) Console.WriteLine("===============================> RPM {0}: {1}", rpm.ID, rpm.AverageRPM);
+                        if (Output2Console) Console.WriteLine("===============================> RPM {0}: {1}", rpm.ID, rpm.AverageRPM);
 
                         //determine engine running state
                         Engine engine = GetEngineForDevice(rpm.ID);
@@ -472,7 +509,7 @@ namespace BBEngineRoomService
                     dev = adm.GetDeviceByBoardID(message.TargetID);
                     if (dev is DS18B20Array)
                     {
-                        Tracing?.TraceEvent(TraceEventType.Information, 0, "Temperature array {0} on board {1} configured {2} sensors on one wire pin {3}", dev.ID, adm.BoardID, ((DS18B20Array)dev).ConnectedSensors.Count, message.GetInt(DS18B20Array.PARAM_ONE_WIRE_PIN));
+                        Tracing?.TraceEvent(TraceEventType.Information, 0, "////////////Temperature array {0} on board {1} configured {2} sensors on one wire pin {3}", dev.ID, adm.BoardID, ((DS18B20Array)dev).ConnectedSensors.Count, message.GetInt(DS18B20Array.PARAM_ONE_WIRE_PIN));
                     }
                     break;
 
@@ -483,16 +520,18 @@ namespace BBEngineRoomService
             base.HandleADMMessage(message, adm);
         }
 
-        protected override void ConnectADM(string port)
+        protected override void ConnectADM(String port, String nodeID = null)
         {
-            base.ConnectADM(port);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.CONNECT, "BBEngineRoom", String.Format("All ADMs on port {0} connected", port));
+            base.ConnectADM(port, nodeID);
+            String msg = nodeID == null ? String.Format("ADMs on port {0} connected", port) : String.Format("ADM @ {0} connected", port + ":" + nodeID);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.CONNECT, "BBEngineRoom", msg);
         }
 
-        protected override void DisconnectADM(string port)
+        protected override void DisconnectADM(String port, String nodeID = null)
         {
-            base.DisconnectADM(port);
-            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom", String.Format("ADMs on port {0} disconnected", port));
+            base.DisconnectADM(port, nodeID);
+            String msg = nodeID == null ? String.Format("ADMs on port {0} disconnected", port) : String.Format("ADM @ {0} disconnected", port + ":" + nodeID);
+            _erdb.LogEvent(EngineRoomServiceDB.LogEventType.DISCONNECT, "BBEngineRoom", msg);
         }
 
         protected override bool OnADMInactivityTimeout(ArduinoDeviceManager adm, long msQuiet)
@@ -502,6 +541,15 @@ namespace BBEngineRoomService
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.WARNING, "BBEngineRoom", desc);
 
             return success;
+        }
+
+        bool monitor = true;
+        protected override void MonitorADM(object sender, System.Timers.ElapsedEventArgs eventArgs)
+        {
+            if (monitor)
+            {
+                base.MonitorADM(sender, eventArgs);
+            }
         }
 
         //Respond to incoming commands

@@ -16,7 +16,7 @@ namespace BBEngineRoomService
         public enum OilState
         {
             NORMAL,
-            LEAK,
+            NO_PRESSURE,
             SENSOR_FAULT
         }
         public const int IS_RUNNING_RPM_THRESHOLD = 100;
@@ -88,14 +88,16 @@ namespace BBEngineRoomService
 
         public OilState CheckOil()
         {
-            if (Running)
+            if (Running && OilSensor.IsOn)
             {
-                return OilSensor.IsOn ? OilState.NORMAL : OilState.LEAK;
+                return OilState.NO_PRESSURE;
             }
-            else
+            else if (!Running && OilSensor.IsOff)
             {
-
-                return OilSensor.IsOff ? OilState.NORMAL : OilState.SENSOR_FAULT;
+                return OilState.SENSOR_FAULT;
+            } else
+            {
+                return OilState.NORMAL;
             }
         }
     }
