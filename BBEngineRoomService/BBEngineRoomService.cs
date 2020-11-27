@@ -60,7 +60,7 @@ namespace BBEngineRoomService
         public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
-            PortSharing = true;
+            PortSharing = false;
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
@@ -69,7 +69,7 @@ namespace BBEngineRoomService
             else
             {
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
-                RequiredBoards = "1";
+                RequiredBoards = "2";
             }
 
             ADMInactivityTimeout = 20000; //To allow for BBED3 sampling at 10secs ADM_INACTIVITY_TIMEOUT; //default of 10,000
@@ -265,12 +265,12 @@ namespace BBEngineRoomService
                     temp = new DS18B20Array(4, "temp_arr");
                     temp.SampleInterval = 2*TEMP_SAMPLE_INTERVAL;
                     temp.SampleSize = TEMP_SAMPLE_SIZE;
-                    temp.AddSensor(GENSET2_ID + "_temp");
                     temp.AddSensor(GENSET1_ID + "_temp");
+                    temp.AddSensor(GENSET2_ID + "_temp");
                     adm.AddDevice(temp);
                 
                     //genset 1
-                    rpm = new RPMCounter(5, GENSET1_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(6, GENSET1_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
@@ -288,7 +288,7 @@ namespace BBEngineRoomService
                     _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
 
                     //genset 2
-                    rpm = new RPMCounter(6, GENSET2_ID + "_rpm", "RPM");
+                    rpm = new RPMCounter(5, GENSET2_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
                     rpm.SampleSize = RPM_SAMPLE_SIZE;
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
