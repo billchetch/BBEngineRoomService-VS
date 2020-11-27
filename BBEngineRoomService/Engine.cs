@@ -13,6 +13,13 @@ namespace BBEngineRoomService
 {
     public class Engine : ArduinoDeviceGroup
     {
+        public class OilSensorSwitch : SwitchSensor
+        {
+            public const String SENSOR_NAME = "OIL";
+
+            public OilSensorSwitch(int pinNumber, String id) : base(pinNumber, 250, id, SENSOR_NAME) { }
+        } //end oil sensor
+
         public enum OilState
         {
             NORMAL,
@@ -20,6 +27,7 @@ namespace BBEngineRoomService
             SENSOR_FAULT
         }
         public const int IS_RUNNING_RPM_THRESHOLD = 100;
+
 
         private bool _online = true;
         public bool Online
@@ -53,12 +61,12 @@ namespace BBEngineRoomService
             }
         }
         public RPMCounter RPM { get; internal set; }
-        public SwitchSensor OilSensor { get; internal set; }
+        public OilSensorSwitch OilSensor { get; internal set; }
         public DS18B20Array.DS18B20Sensor TempSensor { get; internal set; }
         public DateTime LastOn { get; set; }
         public DateTime LastOff { get; set; }
 
-        public Engine(String id, RPMCounter rpm, SwitchSensor oilSensor, DS18B20Array.DS18B20Sensor tempSensor) : base(id, null)
+        public Engine(String id, RPMCounter rpm, OilSensorSwitch oilSensor, DS18B20Array.DS18B20Sensor tempSensor) : base(id, null)
         {
             RPM = rpm;
             OilSensor = oilSensor;

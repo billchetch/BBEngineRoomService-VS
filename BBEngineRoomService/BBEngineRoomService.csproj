@@ -86,6 +86,7 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
+    <Compile Include="Pump.cs" />
     <Compile Include="WaterTanks.cs" />
   </ItemGroup>
   <ItemGroup>

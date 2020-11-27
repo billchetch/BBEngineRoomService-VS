@@ -18,41 +18,8 @@ namespace BBEngineRoomService
 {
     public class BBEngineRoomService : ADMService
     {
-        public class Pump : SwitchSensor
-        {
-            public const String SENSOR_NAME = "PUMP";
-
-            public Pump(int pinNumber, String id) : base(pinNumber, 250, id, SENSOR_NAME) { }
-
-            public void initialise(EngineRoomServiceDB erdb)
-            {
-                //get latest data
-                DBRow row = erdb.GetFirstOnAfterLastOff(ID); //to allow for reconnections which will naturally create an ON evnt
-                if (row != null)
-                {
-                    LastOn = row.GetDateTime("created");
-                }
-                row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
-                if (row != null)
-                {
-                    LastOff = row.GetDateTime("created");
-                }
-            }
-        } //end pump
-
-        public class OilSensor : SwitchSensor
-        {
-            public const String SENSOR_NAME = "OIL";
-
-            public OilSensor(int pinNumber, String id) : base(pinNumber, 250, id, SENSOR_NAME) { }
-        } //end oil sensor
-
-        public class WaterTank : JSN_SR04T
-        {
-            public WaterTank(int transmitPin, int receivePin, String id) : base(transmitPin, receivePin, id) { }
-        }
-
         public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
+        public const int REQUEST_STATE_INTERVAL = 30 * 1000; //the interval by which to wait to request state of things like oil sensors and pumps
 
         public const byte BOARD_ER1 = 1;
         public const byte BOARD_ER2 = 2;
@@ -81,6 +48,7 @@ namespace BBEngineRoomService
         private EngineRoomServiceDB _erdb;
         private Pump _pompaCelup;
         private Pump _pompaSolar;
+        private WaterTanks _waterTanks;
 
         private Dictionary<String, Engine> engines = new Dictionary<String, Engine>();
 
@@ -104,7 +72,7 @@ namespace BBEngineRoomService
                 RequiredBoards = "1";
             }
 
-            ADMInactivityTimeout = ADM_INACTIVITY_TIMEOUT; //default of 10,000
+            ADMInactivityTimeout = 20000; //To allow for BBED3 sampling at 10secs ADM_INACTIVITY_TIMEOUT; //default of 10,000
 
             Sampler.SampleProvided += HandleSampleProvided;
             Sampler.SampleError += HandleSampleError;
@@ -142,13 +110,35 @@ namespace BBEngineRoomService
         {
             //build up a picture of the state of the engine room and log it
             List<Engine> engines = GetEngines();
-            foreach(Engine engine in engines)
+            if (engines != null)
             {
-                if (!engine.Online) continue;
-                _erdb.LogState(engine.ID, "Running", engine.Running);
-                if(engine.RPM != null)_erdb.LogState(engine.ID, "RPM", engine.RPM.AverageRPM);
-                if(engine.OilSensor != null)_erdb.LogState(engine.ID, "OilSensor", engine.OilSensor.State);
-                if (engine.TempSensor != null) _erdb.LogState(engine.ID, "Temperature", engine.TempSensor.Temperature);
+                foreach (Engine engine in engines)
+                {
+                    if (!engine.Online) continue;
+                    _erdb.LogState(engine.ID, "Running", engine.Running);
+                    if (engine.RPM != null) _erdb.LogState(engine.ID, "RPM", engine.RPM.AverageRPM);
+                    if (engine.OilSensor != null) _erdb.LogState(engine.ID, "OilSensor", engine.OilSensor.State);
+                    if (engine.TempSensor != null) _erdb.LogState(engine.ID, "Temperature", engine.TempSensor.Temperature);
+                }
+            }
+
+            //do pumps
+            if(_pompaCelup != null)
+            {
+                _erdb.LogState(_pompaCelup.ID, "Pump", _pompaCelup.State);
+            }
+            if(_pompaSolar != null)
+            {
+                _erdb.LogState(_pompaSolar.ID, "Pump", _pompaCelup.State);
+            }
+
+            //do the water tanks
+            if (_waterTanks != null)
+            {
+                foreach (WaterTanks.WaterTank wt in _waterTanks.Tanks)
+                {
+                    _erdb.LogState(wt.ID, "Water Tank", wt.PercentageFull);
+                }
             }
         }
 
@@ -203,8 +193,7 @@ namespace BBEngineRoomService
             DS18B20Array temp;
             Engine engine;
             RPMCounter rpm;
-            OilSensor oilSensor;
-            WaterTank waterTank;
+            Engine.OilSensorSwitch oilSensor;
             String desc;
             
             switch(adm.BoardID)
@@ -222,11 +211,15 @@ namespace BBEngineRoomService
                     //Pompa celup
                     _pompaCelup = new Pump(10, POMPA_CELUP_ID);
                     _pompaCelup.initialise(_erdb);
+                    _pompaCelup.SampleInterval = REQUEST_STATE_INTERVAL;
+                    _pompaCelup.SampleSize = 1;
                     adm.AddDevice(_pompaCelup);
 
                     //Pompa solar
                     _pompaSolar = new Pump(11, POMPA_SOLAR_ID);
                     _pompaSolar.initialise(_erdb);
+                    _pompaSolar.SampleInterval = REQUEST_STATE_INTERVAL;
+                    _pompaSolar.SampleSize = 1;
                     adm.AddDevice(_pompaSolar);
 
                     //Induk
@@ -236,7 +229,9 @@ namespace BBEngineRoomService
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_INDUK;
                     
-                    oilSensor = new OilSensor(8, INDUK_ID + "_oil");
+                    oilSensor = new Engine.OilSensorSwitch(8, INDUK_ID + "_oil");
+                    oilSensor.SampleInterval = REQUEST_STATE_INTERVAL;
+                    oilSensor.SampleSize = 1;
                     
                     engine = new Engine(INDUK_ID, rpm, oilSensor, temp.GetSensor(INDUK_ID + "_temp"));
                     engine.initialise(_erdb);
@@ -252,7 +247,9 @@ namespace BBEngineRoomService
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_BANTU;
                     
-                    oilSensor = new OilSensor(9, BANTU_ID + "_oil");
+                    oilSensor = new Engine.OilSensorSwitch(9, BANTU_ID + "_oil");
+                    oilSensor.SampleInterval = REQUEST_STATE_INTERVAL;
+                    oilSensor.SampleSize = 1;
 
                     engine = new Engine(BANTU_ID, rpm, oilSensor, temp.GetSensor(BANTU_ID + "_temp"));
                     engine.initialise(_erdb);
@@ -279,7 +276,9 @@ namespace BBEngineRoomService
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_GENSET1;
 
-                    oilSensor = new OilSensor(8, GENSET1_ID + "_oil");
+                    oilSensor = new Engine.OilSensorSwitch(8, GENSET1_ID + "_oil");
+                    oilSensor.SampleInterval = REQUEST_STATE_INTERVAL;
+                    oilSensor.SampleSize = 1;
 
                     engine = new Engine(GENSET1_ID, rpm, oilSensor, temp.GetSensor(GENSET1_ID + "_temp"));
                     engine.initialise(_erdb);
@@ -295,7 +294,9 @@ namespace BBEngineRoomService
                     rpm.SamplingOptions = RPM_SAMPLING_OPTIONS;
                     rpm.Calibration = RPM_CALIBRATION_GENSET2;
 
-                    oilSensor = new OilSensor(9, GENSET2_ID + "_oil");
+                    oilSensor = new Engine.OilSensorSwitch(9, GENSET2_ID + "_oil");
+                    oilSensor.SampleInterval = REQUEST_STATE_INTERVAL;
+                    oilSensor.SampleSize = 1;
 
                     engine = new Engine(GENSET2_ID, rpm, oilSensor, temp.GetSensor(GENSET2_ID + "_temp"));
                     engine.initialise(_erdb);
@@ -306,24 +307,12 @@ namespace BBEngineRoomService
                     break;
 
                 case BOARD_ER3:
-                    waterTank = new WaterTank(4, 5, "wt1");
-                    waterTank.SampleInterval = 6000;
-                    waterTank.SampleSize = 5;
-                    adm.AddDevice(waterTank);
-
-                    waterTank = new WaterTank(6, 7, "wt2");
-                    waterTank.SampleInterval = 3000;
-                    waterTank.SampleSize = 5;
-                    adm.AddDevice(waterTank);
-
-                    waterTank = new WaterTank(6, 7, "wt2");
-                    waterTank.SampleInterval = 6000;
-                    waterTank.SampleSize = 5;
-
-                    adm.AddDevice(waterTank);
-
-                    /*oilSensor = new OilSensor(4, "os1");
-                    adm.AddDevice(oilSensor);*/
+                    _waterTanks = new WaterTanks();
+                    //_waterTanks.AddTank("wt1", 4, 5, 30, 110);
+                    _waterTanks.AddTank("wt2", 6, 7, 30, 100);
+                    //_waterTanks.AddTank("wt3", 8, 9, 30, 100);
+                    _waterTanks.AddTank("wt4", 10, 11, 30, 100);
+                    adm.AddDeviceGroup(_waterTanks);
                     break;
             } //end board switch
         }
@@ -400,24 +389,10 @@ namespace BBEngineRoomService
         {
             base.OnADMDevicesConnected(adm, message);
 
-            /*if (adm.NodeID != "BBED1")
+            if (Sampler.IsRunning)
             {
-                monitor = false;
-                Task.Run(() =>
-                {
-                    System.Threading.Thread.Sleep(1000);
-                    //DisconnectADM(adm.Port, adm.NodeID);
-                    adm.Connection.Close();
-                });
-
-                //((Chetch.Arduino.XBee.XBeeFirmataSerialConnection)adm.Connection).DetachHandlers();
-
-                if(adm.NodeID == "BBED3")
-                {
-                    System.Threading.Thread.Sleep(1000);
-                    Sampler.Start();
-                }
-            }*/
+                _erdb.LogEvent(EngineRoomServiceDB.LogEventType.START, "Sampler", String.Format("Sampling started with timer interval of {0} for {1} subjects", Sampler.TimerInterval, Sampler.SubjectCount ));
+            }
         }
 
         //React to data coming from ADM
@@ -441,10 +416,10 @@ namespace BBEngineRoomService
                                 if(Output2Console)Console.WriteLine("------------------------------> Average temp {0}: {1}", sensor.ID, sensor.AverageTemperature);
                             }
                         }
-                        if(dev is WaterTank)
+                        if(dev is WaterTanks.WaterTank)
                         {
-                            WaterTank wt = ((WaterTank)dev);
-                            //if(Output2Console)Console.WriteLine("****************>: Water Tank distance / average distance: {0} / {1}", wt.Distance, wt.AverageDistance);
+                            WaterTanks.WaterTank wt = ((WaterTanks.WaterTank)dev);
+                            if(Output2Console)Console.WriteLine("****************>: Water Tank distance / average distance / percent / average percent: {0} / {1} / {2} / {3}", wt.Distance, wt.AverageDistance, wt.Percentage, wt.AveragePercentage);
                         }
                     }
                     else
@@ -464,9 +439,9 @@ namespace BBEngineRoomService
                             if (Output2Console) Console.WriteLine("+++++++++++++++> Pump {0} {1}", dev.ID, _pompaSolar.IsOn);
                         }
 
-                        if (dev is OilSensor)
+                        if (dev is Engine.OilSensorSwitch)
                         {
-                            OilSensor os = (OilSensor)dev;
+                            Engine.OilSensorSwitch os = (Engine.OilSensorSwitch)dev;
                             _erdb.LogEvent(os.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, os.ID, "Oil Sensor");
                             Engine engine = GetEngineForDevice(os.ID);
                             //OnOilCheckRequired(engine);
