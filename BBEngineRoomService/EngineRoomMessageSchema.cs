@@ -17,7 +17,8 @@ namespace BBEngineRoomService
         public const String COMMAND_TEST = "test";
         public const String COMMAND_LIST_ENGINES = "list-engines";
         public const String COMMAND_ENGINE_STATUS = "engine-status";
-        public const String COMMAND_SET_ENGINE_ONLINE = "engine-online";
+        public const String COMMAND_ENABLE_ENGINE = "enable-engine";
+        public const String COMMAND_DISABLE_ENGINE = "disable-engine";
 
         public EngineRoomMessageSchema() { }
 
@@ -68,7 +69,7 @@ namespace BBEngineRoomService
         public void AddEngine(Engine engine)
         {
             Message.AddValue("Engine", engine.ID);
-            Message.AddValue("EngineOnline", engine.Online);
+            Message.AddValue("EngineEnabled", engine.Enabled);
             Message.AddValue("EngineRunning", engine.Running);
             Message.AddValue("EngineLastOn", engine.LastOn);
             Message.AddValue("EngineLastOff", engine.LastOff);

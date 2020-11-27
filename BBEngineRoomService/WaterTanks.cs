@@ -12,15 +12,16 @@ namespace BBEngineRoomService
     {
         public class WaterTank : JSN_SR04T
         {
-            public int PercentageFull { 
+            public int PercentFull { 
                 get
                 {
-                    return 100 - ((int)Math.Round(AveragePercentage / 5.0) * 5);
+                    return 100 - ((int)Math.Round(AveragePercentage / (double)PERCENTAGE_PRECISION) * PERCENTAGE_PRECISION);
                 } 
             }
             public WaterTank(int transmitPin, int receivePin, String id) : base(transmitPin, receivePin, id) { }
         }
 
+        public const int PERCENTAGE_PRECISION = 5;
         public const int DEFAULT_SAMPLE_INTERVAL = 10000;
         public const int DEFAULT_SAMPLE_SIZE = 20;
 
@@ -36,12 +37,12 @@ namespace BBEngineRoomService
                 if (Tanks.Count == 0) return 0;
 
                 int total = 0;
-                /*foreach (var wt in _tanks)
+                foreach (var wt in Tanks)
                 {
-                    total += wt.Percentage;
-                }*/
+                    total += wt.PercentFull;
+                }
 
-                return total / Tanks.Count;
+                return ((int)Math.Round(total / Tanks.Count / (double)PERCENTAGE_PRECISION) * PERCENTAGE_PRECISION);
             }
         }
 

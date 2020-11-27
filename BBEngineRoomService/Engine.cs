@@ -29,23 +29,14 @@ namespace BBEngineRoomService
         public const int IS_RUNNING_RPM_THRESHOLD = 100;
 
 
-        private bool _online = true;
-        public bool Online
-        {
-            get { return _online; }
-            set
-            {
-                Running = false;
-                _online = value;
-            }
-        }
-
         private bool _running = false;
         public bool Running
         {
-            get { return _running; }
+            get { return Enabled ? _running : false; }
             set
             {
+                if (!Enabled) return;
+
                 if (_running != value)
                 {
                     _running = value;
@@ -82,16 +73,18 @@ namespace BBEngineRoomService
             row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
             if (row != null) LastOff = row.GetDateTime("created");
             
-            DBRow offline = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFFLINE, ID);
-            DBRow online = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ONLINE, ID);
+            DBRow enabled = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ENABLE, ID);
+            DBRow disabled = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.DISABLE, ID);
 
-            if(offline != null)
+            bool enable = true;
+            if(disabled != null)
             {
-                Online = online == null ? false : online.GetDateTime("created").Ticks > offline.GetDateTime("created").Ticks;
-            } else if(online != null)
+                enable = enabled == null ? false : enabled.GetDateTime("created").Ticks > enabled.GetDateTime("created").Ticks;
+            } else if(enabled != null)
             {
-                Online = true;
+                enable = true;
             }
+            Enable(enable);
         }
 
         public OilState CheckOil()
