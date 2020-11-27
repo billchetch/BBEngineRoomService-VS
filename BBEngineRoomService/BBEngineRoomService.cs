@@ -354,42 +354,46 @@ namespace BBEngineRoomService
             }
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ERROR, source, desc);
         }
-        private void PerformOilCheck(Engine engine, int delay = 0)
+
+        private void PerformOilCheck(Engine engine, int delay)
         {
-            if (engine == null) return;
+            if (delay <= 0) throw new Exception("Delay must be positive");
 
             Task.Run(() =>
             {
-                if (delay > 0) System.Threading.Thread.Sleep(delay);
-
-                Message message = null;
-                String msg = null;
-                switch (engine.CheckOil())
-                {
-                    case Engine.OilState.NO_PRESSURE:
-                        msg = "Oil pressure drop detected";
-                        message = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(engine.OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, msg);
-                        _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
-                        break;
-
-                    case Engine.OilState.NORMAL:
-                        msg = "Engine is " + (engine.Running ? "running" : "not running") + ": Oil state normal";
-                        _erdb.LogEvent(EngineRoomServiceDB.LogEventType.INFO, engine.OilSensor.ID, msg);
-                        break;
-
-                    case Engine.OilState.SENSOR_FAULT:
-                        msg = "Oil sensor faulty";
-                        message = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(engine.OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, msg);
-                        _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
-                        break;
-                }
-
-                if (message != null)
-                {
-                    //Console.WriteLine("Oil Sensor message: {0}", message);
-                    Broadcast(message);
-                }
+                System.Threading.Thread.Sleep(delay);
+                PerformOilCheck(engine);
             });
+        }
+
+        private void PerformOilCheck(Engine engine)
+        {
+            if (engine == null) return;
+
+            Message message = null;
+            String msg = null;
+            switch (engine.CheckOil())
+            {
+                case Engine.OilState.NO_PRESSURE:
+                    msg = "Oil pressure drop detected";
+                    BBAlarmsService.AlarmsMessageSchema.RaiseAlarm(this, engine.OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, msg);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
+                    break;
+
+                case Engine.OilState.NORMAL:
+                    if (BBAlarmsService.AlarmsMessageSchema.LowerAlarm(this, engine.OilSensor.ID))
+                    {
+                        msg = "Engine is " + (engine.Running ? "running" : "not running") + ": Oil state now normal";
+                        _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT_OFF, engine.OilSensor.ID, msg);
+                    }
+                    break;
+
+                case Engine.OilState.SENSOR_FAULT:
+                    msg = "Oil sensor faulty";
+                    BBAlarmsService.AlarmsMessageSchema.RaiseAlarm(this, engine.OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, msg);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
+                    break;
+            }
         }
 
         protected override void OnADMDevicesConnected(ArduinoDeviceManager adm, ADMMessage message)
@@ -556,6 +560,7 @@ namespace BBEngineRoomService
 
             EngineRoomMessageSchema schema = new EngineRoomMessageSchema(response);
             Engine engine;
+            List<Engine> engines;
             switch (cmd)
             {
                 case EngineRoomMessageSchema.COMMAND_TEST:
@@ -567,7 +572,7 @@ namespace BBEngineRoomService
                     return false;
 
                 case EngineRoomMessageSchema.COMMAND_LIST_ENGINES:
-                    List<Engine> engines = GetEngines();
+                    engines = GetEngines();
                     List<String> engineIDs = new List<String>();
 
                     foreach(Engine eng in engines)
@@ -602,9 +607,35 @@ namespace BBEngineRoomService
                     }
                     return true;
 
+                case BBAlarmsService.AlarmsMessageSchema.COMMAND_ALARM_STATUS:
+                    //check all ADMs are connected...
+
+                    //check oil, tmp and rpm
+                    engines = GetEngines();
+                    foreach (var eng in engines) 
+                    {
+                        PerformOilCheck(eng);
+                        //PerformTemperatureCheck(eng);
+                        //PerformRPMCheck(eng);
+                    }
+
+                    //check on duration of celup n solar pumps
+                    return true;
+
                 default:
                     return base.HandleCommand(cnn, message, cmd, args, response);
             }
+        }
+
+        public override void HandleClientMessage(Connection cnn, Message message)
+        {
+            switch (message.Type)
+            {
+                case MessageType.COMMAND:
+                    break;
+            }
+
+            base.HandleClientMessage(cnn, message);
         }
     } //end service class
 }
