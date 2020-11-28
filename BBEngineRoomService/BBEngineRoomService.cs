@@ -307,11 +307,14 @@ namespace BBEngineRoomService
 
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
-                    //_waterTanks.AddTank("wt1", 4, 5, 30, 110);
+                    _waterTanks.AddTank("wt1", 4, 5, 30, 110);
                     _waterTanks.AddTank("wt2", 6, 7, 30, 100);
-                    //_waterTanks.AddTank("wt3", 8, 9, 30, 100);
+                    _waterTanks.AddTank("wt3", 8, 9, 30, 100);
                     _waterTanks.AddTank("wt4", 10, 11, 30, 100);
                     adm.AddDeviceGroup(_waterTanks);
+
+                    desc = String.Format("Addd {0} water thanks to {1}", _waterTanks.Devices.Count, adm.PortAndNodeID);
+                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, "Water Tanks", desc);
                     break;
             } //end board switch
         }
@@ -430,7 +433,7 @@ namespace BBEngineRoomService
                         if(dev is WaterTanks.WaterTank)
                         {
                             WaterTanks.WaterTank wt = ((WaterTanks.WaterTank)dev);
-                            if(Output2Console)Console.WriteLine("****************>: Water Tank distance / average distance / percent / percent full: {0} / {1} / {2} / {3}", wt.Distance, wt.AverageDistance, wt.Percentage, wt.PercentFull);
+                            if(Output2Console)Console.WriteLine("****************>: Water Tank {0} distance / average distance / percent / percent full: {1} / {2} / {3} / {4}", wt.ID, wt.Distance, wt.AverageDistance, wt.Percentage, wt.PercentFull);
                         }
                     }
                     else
