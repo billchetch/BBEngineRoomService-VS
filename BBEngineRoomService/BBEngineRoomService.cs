@@ -64,7 +64,7 @@ namespace BBEngineRoomService
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED1"; //,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED1,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
