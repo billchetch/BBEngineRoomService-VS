@@ -24,20 +24,20 @@ namespace BBEngineRoomService
 
         public EngineRoomMessageSchema(Message message) : base(message) { }
 
-        public void AddPompaCelup(SwitchSensor pompaCelup)
+        public void AddPump(Pump pump)
         {
-            Message.AddValue(ADMService.MessageSchema.DEVICE_ID, pompaCelup.ID);
-            Message.AddValue("State", pompaCelup.State);
-            Message.AddValue("LastOn", pompaCelup.LastOn);
-            Message.AddValue("LastOff", pompaCelup.LastOff);
+            Message.AddValue(ADMService.MessageSchema.DEVICE_ID, pump.ID);
+            Message.AddValue("State", pump.State);
+            Message.AddValue("LastOn", pump.LastOn);
+            Message.AddValue("LastOff", pump.LastOff);
         }
-
 
         public void AddRPM(RPMCounter rpm)
         {
             Message.AddValue(ADMService.MessageSchema.DEVICE_ID, rpm.ID);
             Message.AddValue(ADMService.MessageSchema.DEVICE_NAME, rpm.Name);
             Message.AddValue("AverageRPM", rpm.AverageRPM);
+            Message.AddValue("RPM", rpm.RPM);
         }
 
         public void AddDS18B20Array(DS18B20Array ta)

@@ -20,6 +20,7 @@ namespace BBEngineRoomService
     {
         public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
         public const int REQUEST_STATE_INTERVAL = 30 * 1000; //the interval by which to wait to request state of things like oil sensors and pumps
+        public const int TIMER_MONITOR_ENGINE_ROOM_INTERVAL = 1 * 1000;
 
         public const byte BOARD_ER1 = 1;
         public const byte BOARD_ER2 = 2;
@@ -52,6 +53,7 @@ namespace BBEngineRoomService
 
         private Dictionary<String, Engine> engines = new Dictionary<String, Engine>();
 
+        private System.Timers.Timer _timerMonitorEngineRoom;
         private System.Timers.Timer _timerStateLog;
 
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
@@ -95,7 +97,11 @@ namespace BBEngineRoomService
                 _timerStateLog = new System.Timers.Timer();
                 _timerStateLog.Interval = TIMER_STATE_LOG_INTERVAL;
                 _timerStateLog.Elapsed += OnStateLogTimer;
-                _timerStateLog.Start();
+                
+                Tracing?.TraceEvent(TraceEventType.Information, 0, "Creating montior engine room timer at {0} intervals", TIMER_MONITOR_ENGINE_ROOM_INTERVAL);
+                _timerMonitorEngineRoom = new System.Timers.Timer();
+                _timerMonitorEngineRoom.Interval = TIMER_MONITOR_ENGINE_ROOM_INTERVAL;
+                _timerMonitorEngineRoom.Elapsed += OnMonitorEngineRoomTimer;
             }
             catch (Exception e)
             {
@@ -114,31 +120,54 @@ namespace BBEngineRoomService
             {
                 foreach (Engine engine in engines)
                 {
-                    if (!engine.Enabled) continue;
-                    _erdb.LogState(engine.ID, "Running", engine.Running);
-                    if (engine.RPM != null) _erdb.LogState(engine.ID, "RPM", engine.RPM.AverageRPM);
-                    if (engine.OilSensor != null) _erdb.LogState(engine.ID, "OilSensor", engine.OilSensor.State);
-                    if (engine.TempSensor != null) _erdb.LogState(engine.ID, "Temperature", engine.TempSensor.Temperature);
+                    engine.LogState(_erdb);
                 }
             }
 
             //do pumps
             if(_pompaCelup != null)
             {
-                _erdb.LogState(_pompaCelup.ID, "Pump", _pompaCelup.State);
+                _pompaCelup.LogState(_erdb);
             }
             if(_pompaSolar != null)
             {
-                _erdb.LogState(_pompaSolar.ID, "Pump", _pompaCelup.State);
+                _pompaSolar.LogState(_erdb);
             }
 
             //do the water tanks
             if (_waterTanks != null)
             {
-                foreach (WaterTanks.WaterTank wt in _waterTanks.Tanks)
+                _waterTanks.LogState(_erdb);
+            }
+        }
+
+        protected void OnMonitorEngineRoomTimer(Object sender, System.Timers.ElapsedEventArgs eventArgs)
+        {
+            bool eventsOnly = sender != null;
+            List<Message> msgs = new List<Message>();
+
+            List<Engine> engines = GetEngines();
+            if (engines != null)
+            {
+                foreach (Engine engine in engines)
                 {
-                    _erdb.LogState(wt.ID, "Water Tank", wt.PercentFull);
+                    engine.Monitor(_erdb, msgs, eventsOnly);
                 }
+            }
+
+            //do pumps
+            if (_pompaCelup != null)
+            {
+                _pompaCelup.Monitor(_erdb, msgs, eventsOnly);
+            }
+            if (_pompaSolar != null)
+            {
+                _pompaSolar.Monitor(_erdb, msgs, eventsOnly);
+            }
+
+            if (_waterTanks != null)
+            {
+                _waterTanks.Monitor(_erdb, msgs, eventsOnly);
             }
         }
 
@@ -210,14 +239,16 @@ namespace BBEngineRoomService
 
                     //Pompa celup
                     _pompaCelup = new Pump(10, POMPA_CELUP_ID);
-                    _pompaCelup.initialise(_erdb);
+                    _pompaCelup.MaxOnDuration = 15 * 60; //raise an alarm if on for more than 15 minutes
+                    _pompaCelup.Initialise(_erdb);
                     _pompaCelup.SampleInterval = REQUEST_STATE_INTERVAL;
                     _pompaCelup.SampleSize = 1;
                     adm.AddDevice(_pompaCelup);
 
                     //Pompa solar
                     _pompaSolar = new Pump(11, POMPA_SOLAR_ID);
-                    _pompaSolar.initialise(_erdb);
+                    _pompaCelup.MaxOnDuration = 60 * 60; //raise an alarm if on for more than 60 minutes
+                    _pompaSolar.Initialise(_erdb);
                     _pompaSolar.SampleInterval = REQUEST_STATE_INTERVAL;
                     _pompaSolar.SampleSize = 1;
                     adm.AddDevice(_pompaSolar);
@@ -234,11 +265,8 @@ namespace BBEngineRoomService
                     oilSensor.SampleSize = 1;
                     
                     engine = new Engine(INDUK_ID, rpm, oilSensor, temp.GetSensor(INDUK_ID + "_temp"));
-                    engine.initialise(_erdb);
+                    engine.Initialise(_erdb);
                     adm.AddDeviceGroup(engine);
-                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Enabled ? "enabled" : "enabled");
-                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
                     
                     //Bantu
                     rpm = new RPMCounter(6, BANTU_ID + "_rpm", "RPM");
@@ -252,11 +280,8 @@ namespace BBEngineRoomService
                     oilSensor.SampleSize = 1;
 
                     engine = new Engine(BANTU_ID, rpm, oilSensor, temp.GetSensor(BANTU_ID + "_temp"));
-                    engine.initialise(_erdb);
+                    engine.Initialise(_erdb);
                     adm.AddDeviceGroup(engine);
-                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Enabled ? "enabled" : "disabled");
-                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
                     break;
 
                 case BOARD_ER2:
@@ -280,12 +305,9 @@ namespace BBEngineRoomService
                     oilSensor.SampleSize = 1;
 
                     engine = new Engine(GENSET1_ID, rpm, oilSensor, temp.GetSensor(GENSET1_ID + "_temp"));
-                    engine.initialise(_erdb);
+                    engine.Initialise(_erdb);
                     adm.AddDeviceGroup(engine);
-                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Enabled ? "enabled" : "disabled");
-                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
-
+                    
                     //genset 2
                     rpm = new RPMCounter(5, GENSET2_ID + "_rpm", "RPM");
                     rpm.SampleInterval = RPM_SAMPLE_INTERVAL;
@@ -298,23 +320,18 @@ namespace BBEngineRoomService
                     oilSensor.SampleSize = 1;
 
                     engine = new Engine(GENSET2_ID, rpm, oilSensor, temp.GetSensor(GENSET2_ID + "_temp"));
-                    engine.initialise(_erdb);
+                    engine.Initialise(_erdb);
                     adm.AddDeviceGroup(engine);
-                    desc = String.Format("Added engine {0} to {1} ({2}) .. engine is {3}", engine.ID, adm.BoardID, adm.PortAndNodeID, engine.Enabled ? "enabled" : "enabled");
-                    Tracing?.TraceEvent(TraceEventType.Information, 0, desc);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, engine.ID, desc);
                     break;
 
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
-                    _waterTanks.AddTank("wt1", 4, 5, 30, 110);
-                    _waterTanks.AddTank("wt2", 6, 7, 30, 100);
-                    _waterTanks.AddTank("wt3", 8, 9, 30, 100);
-                    _waterTanks.AddTank("wt4", 10, 11, 30, 100);
+                    _waterTanks.AddTank("wt1", 4, 5, 1200, 30, 100);
+                    _waterTanks.AddTank("wt2", 6, 7, 1100, 30, 100);
+                    _waterTanks.AddTank("wt3", 8, 9, 1100, 30, 100);
+                    _waterTanks.AddTank("wt4", 10, 11, 1100, 35, 100);
+                    _waterTanks.Initialise(_erdb);
                     adm.AddDeviceGroup(_waterTanks);
-
-                    desc = String.Format("Addd {0} water thanks to {1}", _waterTanks.Devices.Count, adm.PortAndNodeID);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ADD, "Water Tanks", desc);
                     break;
             } //end board switch
         }
@@ -358,47 +375,6 @@ namespace BBEngineRoomService
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ERROR, source, desc);
         }
 
-        private void PerformOilCheck(Engine engine, int delay)
-        {
-            if (delay <= 0) throw new Exception("Delay must be positive");
-
-            Task.Run(() =>
-            {
-                System.Threading.Thread.Sleep(delay);
-                PerformOilCheck(engine);
-            });
-        }
-
-        private void PerformOilCheck(Engine engine)
-        {
-            if (engine == null) return;
-
-            Message message = null;
-            String msg = null;
-            switch (engine.CheckOil())
-            {
-                case Engine.OilState.NO_PRESSURE:
-                    msg = "Oil pressure drop detected";
-                    BBAlarmsService.AlarmsMessageSchema.RaiseAlarm(this, engine.OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, msg);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
-                    break;
-
-                case Engine.OilState.NORMAL:
-                    if (BBAlarmsService.AlarmsMessageSchema.LowerAlarm(this, engine.OilSensor.ID))
-                    {
-                        msg = "Engine is " + (engine.Running ? "running" : "not running") + ": Oil state now normal";
-                        _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT_OFF, engine.OilSensor.ID, msg);
-                    }
-                    break;
-
-                case Engine.OilState.SENSOR_FAULT:
-                    msg = "Oil sensor faulty";
-                    BBAlarmsService.AlarmsMessageSchema.RaiseAlarm(this, engine.OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, msg);
-                    _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ALERT, engine.OilSensor.ID, msg);
-                    break;
-            }
-        }
-
         protected override void OnADMDevicesConnected(ArduinoDeviceManager adm, ADMMessage message)
         {
             base.OnADMDevicesConnected(adm, message);
@@ -406,6 +382,8 @@ namespace BBEngineRoomService
             if (Sampler.IsRunning)
             {
                 _erdb.LogEvent(EngineRoomServiceDB.LogEventType.START, "Sampler", String.Format("Sampling started with timer interval of {0} for {1} subjects", Sampler.TimerInterval, Sampler.SubjectCount ));
+                _timerStateLog.Start();
+                _timerMonitorEngineRoom.Start();
             }
         }
 
@@ -430,8 +408,10 @@ namespace BBEngineRoomService
                                 if(Output2Console)Console.WriteLine("------------------------------> Average temp {0}: {1}", sensor.ID, sensor.AverageTemperature);
                             }
                         }
+
                         if(dev is WaterTanks.WaterTank)
                         {
+                            //schema.AddWaterTanks(_waterTanks);
                             WaterTanks.WaterTank wt = ((WaterTanks.WaterTank)dev);
                             if(Output2Console)Console.WriteLine("****************>: Water Tank {0} distance / average distance / percent / percent full: {1} / {2} / {3} / {4}", wt.ID, wt.Distance, wt.AverageDistance, wt.Percentage, wt.PercentFull);
                         }
@@ -441,14 +421,13 @@ namespace BBEngineRoomService
                         dev = adm.GetDevice(message.Sender);
                         if (dev == _pompaCelup)
                         {
-                            schema.AddPompaCelup(_pompaCelup);
-                            _erdb.LogEvent(_pompaCelup.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, _pompaCelup.ID, "Pompa Celup");
+                            schema.AddPump(_pompaCelup);
                             if (Output2Console) Console.WriteLine("+++++++++++++++> Pump {0} {1}", dev.ID, _pompaCelup.IsOn);
                         }
 
                         if (dev == _pompaSolar)
                         {
-                            //schema.AddPompaSolar(_pompaSolar);
+                            schema.AddPump(_pompaSolar);
                             _erdb.LogEvent(_pompaSolar.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, _pompaSolar.ID, "Pompa Solar");
                             if (Output2Console) Console.WriteLine("+++++++++++++++> Pump {0} {1}", dev.ID, _pompaSolar.IsOn);
                         }
@@ -456,9 +435,7 @@ namespace BBEngineRoomService
                         if (dev is Engine.OilSensorSwitch)
                         {
                             Engine.OilSensorSwitch os = (Engine.OilSensorSwitch)dev;
-                            _erdb.LogEvent(os.IsOn ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF, os.ID, "Oil Sensor");
-                            Engine engine = GetEngineForDevice(os.ID);
-                            PerformOilCheck(engine, 5000);
+                            schema.AddOilSensor(os);
                             if (Output2Console) Console.WriteLine("+++++++++++++++> Oil Sensor {0} {1}", os.ID, os.IsOn);
                         }
 
@@ -475,23 +452,6 @@ namespace BBEngineRoomService
 
                         //TODO: remove
                         if (Output2Console) Console.WriteLine("===============================> RPM {0}: {1}", rpm.ID, rpm.AverageRPM);
-
-                        //determine engine running state
-                        Engine engine = GetEngineForDevice(rpm.ID);
-                        //if (engine == null) throw new Exception("No engine found for RPM device " + rpm.ID);
-                        if (engine != null && engine.Enabled)
-                        {
-                            bool running = rpm.RPM > Engine.IS_RUNNING_RPM_THRESHOLD;
-                            if (running != engine.Running)
-                            {
-                                engine.Running = running;
-                                EngineRoomServiceDB.LogEventType let = engine.Running ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF;
-                                _erdb.LogEvent(let, engine.ID, "Engine now " + let.ToString());
-
-                                PerformOilCheck(engine, 5000);
-                                schema.AddEngine(engine); //add engine data to provide running/not running event changes
-                            }
-                        }
                     }
                     break;
 
@@ -536,15 +496,7 @@ namespace BBEngineRoomService
             return success;
         }
 
-        bool monitor = true;
-        protected override void MonitorADM(object sender, System.Timers.ElapsedEventArgs eventArgs)
-        {
-            if (monitor)
-            {
-                base.MonitorADM(sender, eventArgs);
-            }
-        }
-
+        
         //Respond to incoming commands
         public override void AddCommandHelp()
         {
@@ -617,7 +569,7 @@ namespace BBEngineRoomService
                     engines = GetEngines();
                     foreach (var eng in engines) 
                     {
-                        PerformOilCheck(eng);
+                        //PerformOilCheck(eng);
                         //PerformTemperatureCheck(eng);
                         //PerformRPMCheck(eng);
                     }
