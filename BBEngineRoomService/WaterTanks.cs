@@ -80,7 +80,7 @@ namespace BBEngineRoomService
 
         public const int PERCENTAGE_PRECISION = 5;
         public const int DEFAULT_SAMPLE_INTERVAL = 10000;
-        public const int DEFAULT_SAMPLE_SIZE = 20;
+        public const int DEFAULT_SAMPLE_SIZE = 12;
 
         public int SampleInterval { get; set; } = DEFAULT_SAMPLE_INTERVAL;
         public int SampleSize { get; set; } = DEFAULT_SAMPLE_SIZE;
@@ -135,6 +135,7 @@ namespace BBEngineRoomService
             wt.Capacity = capacity;
             wt.MinDistance = minDistance;
             wt.MaxDistance = maxDistance;
+            wt.Offset = 3;
 
             wt.SampleInterval = SampleInterval;
             wt.SampleSize = SampleSize;
@@ -170,7 +171,7 @@ namespace BBEngineRoomService
         public void Monitor(EngineRoomServiceDB erdb, List<Message> messages, bool returnEventsOnly)
         {
             //if not enabled OR it has only just been initialised then don't monitor ... the distance sensor device needs time to build an accurate reading
-            if (!Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 60) return;
+            if (!Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 30) return;
 
             Message msg = null;
             String desc = null;
@@ -182,17 +183,17 @@ namespace BBEngineRoomService
             {
                 case WaterLevel.VERY_LOW:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Water Level: {0}", Level);
+                    desc = String.Format("Water Level: {0} @ {1}% and {2}L remaining", Level, PercentFull, Remaining);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.MODERATE, desc);
                     break;
                 case WaterLevel.EMPTY:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Water Level: {0}", Level);
+                    desc = String.Format("Water Level: {0} @ {1}% and {2}L remaining", Level, PercentFull, Remaining);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.SEVERE, desc);
                     break;
                 default:
                     let = EngineRoomServiceDB.LogEventType.INFO;
-                    desc = String.Format("Water Level: {0}", Level);
+                    desc = String.Format("Water Level: {0} @ {1}% and {2}L remaining", Level, PercentFull, Remaining);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.OFF, desc);
                     break;
             }
@@ -207,12 +208,12 @@ namespace BBEngineRoomService
 
         public void LogState(EngineRoomServiceDB erdb)
         {
-            if (!Enabled || Tanks.Count == 0) return;
+            if (Tanks.Count == 0 || !Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 30) return;
 
             String desc;
             foreach (WaterTank wt in Tanks)
             {
-                desc = String.Format("Water tank {0} is {1}% full and has {2}L remaining ... level is {3}", wt.ID, wt.PercentFull, wt.Remaining, wt.Level);
+                desc = String.Format("Water tank {0} is {1}% full (distance = {2}) and has {3}L remaining ... level is {4}", wt.ID, wt.PercentFull, wt.AverageDistance, wt.Remaining, wt.Level);
                 erdb.LogState(wt.ID, "Water Tanks", wt.PercentFull, desc);
             }
 

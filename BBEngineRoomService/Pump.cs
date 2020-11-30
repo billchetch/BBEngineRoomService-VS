@@ -80,16 +80,26 @@ namespace BBEngineRoomService
             if(IsOn && DateTime.Now.Subtract(LastOn).TotalSeconds > MaxOnDuration)
             {
                 StateOfPump = PumpState.ON_TOO_LONG;
-                let = EngineRoomServiceDB.LogEventType.WARNING;
-                desc = String.Format("Pump is: {0}", StateOfPump);
-                msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.SEVERE, desc);
             }
             else
             {
                 StateOfPump = IsOn ? PumpState.ON : PumpState.OFF;
-                let = EngineRoomServiceDB.LogEventType.INFO;
-                desc = String.Format("Pump is: {0}", StateOfPump);
-                msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.OFF, desc);
+            }
+
+            switch (StateOfPump)
+            {
+                case PumpState.ON_TOO_LONG:
+                    let = EngineRoomServiceDB.LogEventType.WARNING;
+                    desc = String.Format("Pump is: {0}", StateOfPump);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.SEVERE, desc);
+                    break;
+
+                case PumpState.ON:
+                case PumpState.OFF:
+                    let = EngineRoomServiceDB.LogEventType.INFO;
+                    desc = String.Format("Pump is: {0}", StateOfPump);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.OFF, desc);
+                    break;
             }
             if (msg != null && (pumpState != StateOfPump || !returnEventsOnly))
             {

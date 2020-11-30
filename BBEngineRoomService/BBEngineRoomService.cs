@@ -18,7 +18,7 @@ namespace BBEngineRoomService
 {
     public class BBEngineRoomService : ADMService
     {
-        public const int TIMER_STATE_LOG_INTERVAL = 60 * 1000;
+        public const int TIMER_STATE_LOG_INTERVAL = 10 * 1000;
         public const int REQUEST_STATE_INTERVAL = 30 * 1000; //the interval by which to wait to request state of things like oil sensors and pumps
         public const int TIMER_MONITOR_ENGINE_ROOM_INTERVAL = 1 * 1000;
 
@@ -33,10 +33,10 @@ namespace BBEngineRoomService
         
         public const double RPM_CALIBRATION_BANTU = 0.47; // 17/8
         public const double RPM_CALIBRATION_INDUK = 0.47; // / 17/8;
-        public const double RPM_CALIBRATION_GENSET1 = 0.55;
-        public const double RPM_CALIBRATION_GENSET2 = 0.56; 
-        public const int RPM_SAMPLE_SIZE = 5;
-        public const int RPM_SAMPLE_INTERVAL = 4000; //ms
+        public const double RPM_CALIBRATION_GENSET1 = 0.54;
+        public const double RPM_CALIBRATION_GENSET2 = 0.54; 
+        public const int RPM_SAMPLE_SIZE = 7;
+        public const int RPM_SAMPLE_INTERVAL = 2000; //ms
         public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_COUNT_PRUNE_MIN_MAX;
         
         public const String POMPA_CELUP_ID = "pmp_clp";
@@ -326,10 +326,10 @@ namespace BBEngineRoomService
 
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
-                    _waterTanks.AddTank("wt1", 4, 5, 1200, 30, 100);
-                    _waterTanks.AddTank("wt2", 6, 7, 1100, 30, 100);
-                    _waterTanks.AddTank("wt3", 8, 9, 1100, 30, 100);
-                    _waterTanks.AddTank("wt4", 10, 11, 1100, 35, 100);
+                    _waterTanks.AddTank("wt1", 4, 5, 1200, 25, 110);
+                    _waterTanks.AddTank("wt2", 6, 7, 1100, 25, 105);
+                    _waterTanks.AddTank("wt3", 8, 9, 1100, 25, 105);
+                    _waterTanks.AddTank("wt4", 10, 11, 1100, 25, 105);
                     _waterTanks.Initialise(_erdb);
                     adm.AddDeviceGroup(_waterTanks);
                     break;
