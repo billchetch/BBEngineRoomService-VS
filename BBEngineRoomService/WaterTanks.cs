@@ -171,7 +171,7 @@ namespace BBEngineRoomService
         public void Monitor(EngineRoomServiceDB erdb, List<Message> messages, bool returnEventsOnly)
         {
             //if not enabled OR it has only just been initialised then don't monitor ... the distance sensor device needs time to build an accurate reading
-            if (!Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 30) return;
+            if (!Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 45) return;
 
             Message msg = null;
             String desc = null;
@@ -208,7 +208,7 @@ namespace BBEngineRoomService
 
         public void LogState(EngineRoomServiceDB erdb)
         {
-            if (Tanks.Count == 0 || !Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 30) return;
+            if (Tanks.Count == 0 || !Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 45) return;
 
             String desc;
             foreach (WaterTank wt in Tanks)
