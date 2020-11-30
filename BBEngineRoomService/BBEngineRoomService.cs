@@ -35,8 +35,8 @@ namespace BBEngineRoomService
         
         public const double RPM_CALIBRATION_BANTU = 0.47; // 17/8
         public const double RPM_CALIBRATION_INDUK = 0.47; // / 17/8;
-        public const double RPM_CALIBRATION_GENSET1 = 0.54;
-        public const double RPM_CALIBRATION_GENSET2 = 0.54; 
+        public const double RPM_CALIBRATION_GENSET1 = 0.55; // calibrated using Deepsea
+        public const double RPM_CALIBRATION_GENSET2 = 0.55; // calibrated using Deepsea
         public const int RPM_SAMPLE_SIZE = 7;
         public const int RPM_SAMPLE_INTERVAL = 2000; //ms
         public const Sampler.SamplingOptions RPM_SAMPLING_OPTIONS = Sampler.SamplingOptions.MEAN_COUNT_PRUNE_MIN_MAX;
