@@ -18,7 +18,9 @@ namespace BBEngineRoomService
 {
     public class BBEngineRoomService : ADMService
     {
-        public const int TIMER_STATE_LOG_INTERVAL = 10 * 1000;
+        public const String BBER_VERSION = "1.1"; //used for loggin so as to know which 'version' is being started (useful for debugging)
+
+        public const int TIMER_STATE_LOG_INTERVAL = 30 * 1000;
         public const int REQUEST_STATE_INTERVAL = 30 * 1000; //the interval by which to wait to request state of things like oil sensors and pumps
         public const int TIMER_MONITOR_ENGINE_ROOM_INTERVAL = 1 * 1000;
 
@@ -59,8 +61,10 @@ namespace BBEngineRoomService
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
         public bool Output2Console = false; //TODO: REMOVE THIS!!!
         
-        public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) // base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
+        public BBEngineRoomService() : base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //base("BBEngineRoom", null, "ADMTestService", null) // 
         {
+            Tracing?.TraceEvent(TraceEventType.Information, 0, "Constructing Service class version {0} ...", BBER_VERSION);
+
             AddAllowedPorts(Properties.Settings.Default.AllowedPorts);
             PortSharing = true;
             if (PortSharing)
@@ -73,13 +77,14 @@ namespace BBEngineRoomService
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
                 RequiredBoards = "2";
             }
+            Tracing?.TraceEvent(TraceEventType.Information, 0, "Setting supported boards to {0} and required boards to  {1} ...", SupportedBoards, RequiredBoards);
 
             ADMInactivityTimeout = 20000; //To allow for BBED3 sampling at 10secs ADM_INACTIVITY_TIMEOUT; //default of 10,000
 
             Sampler.SampleProvided += HandleSampleProvided;
             Sampler.SampleError += HandleSampleError;
 
-            Output2Console = true; //TODO: remove this
+            Output2Console = false; //TODO: remove this
             //AutoStartADMTimer = false;
         }
 
@@ -462,7 +467,7 @@ namespace BBEngineRoomService
                     dev = adm.GetDeviceByBoardID(message.TargetID);
                     if (dev is DS18B20Array)
                     {
-                        Tracing?.TraceEvent(TraceEventType.Information, 0, "////////////Temperature array {0} on board {1} configured {2} sensors on one wire pin {3}", dev.ID, adm.BoardID, ((DS18B20Array)dev).ConnectedSensors.Count, message.GetInt(DS18B20Array.PARAM_ONE_WIRE_PIN));
+                        Tracing?.TraceEvent(TraceEventType.Information, 0, "Temperature array {0} on board {1} configured {2} sensors on one wire pin {3}", dev.ID, adm.BoardID, ((DS18B20Array)dev).ConnectedSensors.Count, message.GetInt(DS18B20Array.PARAM_ONE_WIRE_PIN));
                     }
                     break;
 
@@ -563,18 +568,19 @@ namespace BBEngineRoomService
                     return true;
 
                 case BBAlarmsService.AlarmsMessageSchema.COMMAND_ALARM_STATUS:
-                    //check all ADMs are connected...
+                    OnMonitorEngineRoomTimer(null, null);
+                    return true;
 
-                    //check oil, tmp and rpm
-                    engines = GetEngines();
-                    foreach (var eng in engines) 
-                    {
-                        //PerformOilCheck(eng);
-                        //PerformTemperatureCheck(eng);
-                        //PerformRPMCheck(eng);
-                    }
+                case BBAlarmsService.AlarmsMessageSchema.COMMAND_RAISE_ALARM:
+                    if (args == null || args.Count < 1) throw new Exception("No alarm specified");
+                    String alarmID = args[0].ToString();
+                    BBAlarmsService.AlarmState alarmState = BBAlarmsService.AlarmState.CRITICAL;
+                    BBAlarmsService.AlarmsMessageSchema.RaiseAlarm(this, alarmID, alarmState, "Raised alarm", true);
+                    return true;
 
-                    //check on duration of celup n solar pumps
+               case BBAlarmsService.AlarmsMessageSchema.COMMAND_LOWER_ALARM:
+                    if (args == null || args.Count < 1) throw new Exception("No alarm specified");
+                    BBAlarmsService.AlarmsMessageSchema.LowerAlarm(this, args[0].ToString(), BBAlarmsService.AlarmState.OFF, "Lowered alarm", true);
                     return true;
 
                 default:
