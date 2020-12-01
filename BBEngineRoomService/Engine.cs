@@ -249,7 +249,7 @@ namespace BBEngineRoomService
                 {
                     StateOfRPM = RPMState.SLOW;
                 }
-                else if (RPM.AverageRPM < 1600)
+                else if (RPM.AverageRPM < 1650)
                 {
                     StateOfRPM = RPMState.NORMAL;
                 }
@@ -281,7 +281,7 @@ namespace BBEngineRoomService
                 case RPMState.TOO_FAST:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("RPM (Instant/Average): {0}/{1} gives state {2}", RPM.RPM, RPM.AverageRPM, StateOfRPM);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.CRITICAL, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
                     break;
             }
             if (msg != null && (rpmState != StateOfRPM || !returnEventsOnly))
