@@ -332,9 +332,9 @@ namespace BBEngineRoomService
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
                     _waterTanks.AddTank("wt1", 4, 5, 1200, 25, 110);
-                    _waterTanks.AddTank("wt2", 6, 7, 1100, 25, 105);
-                    _waterTanks.AddTank("wt3", 8, 9, 1100, 25, 105);
-                    _waterTanks.AddTank("wt4", 10, 11, 1100, 25, 105);
+                    _waterTanks.AddTank("wt2", 6, 7, 1100, 30, 105);
+                    _waterTanks.AddTank("wt3", 8, 9, 1100, 30, 105);
+                    _waterTanks.AddTank("wt4", 10, 11, 1100, 35, 105);
                     _waterTanks.Initialise(_erdb);
                     adm.AddDeviceGroup(_waterTanks);
                     break;

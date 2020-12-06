@@ -96,7 +96,7 @@ namespace BBEngineRoomService
 
                 case PumpState.ON:
                 case PumpState.OFF:
-                    let = EngineRoomServiceDB.LogEventType.INFO;
+                    let = StateOfPump == PumpState.ON ? EngineRoomServiceDB.LogEventType.ON: EngineRoomServiceDB.LogEventType.OFF;
                     desc = String.Format("Pump is: {0}", StateOfPump);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.OFF, desc);
                     break;

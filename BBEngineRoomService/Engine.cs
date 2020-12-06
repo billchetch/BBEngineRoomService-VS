@@ -45,7 +45,7 @@ namespace BBEngineRoomService
             TOO_FAST
         }
 
-        public const int IS_RUNNING_RPM_THRESHOLD = 100;
+        public const int IS_RUNNING_RPM_THRESHOLD = 250;
 
         private bool _running = false;
         public bool Running

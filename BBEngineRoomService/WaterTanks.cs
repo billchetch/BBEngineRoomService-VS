@@ -177,14 +177,16 @@ namespace BBEngineRoomService
             String desc = null;
             EngineRoomServiceDB.LogEventType let;
 
-            WaterLevel waterLevel = Level;
-            Level = WaterTank.GetWaterLevel(PercentFull);
-            switch(Level)
+            WaterLevel waterLevel = Level; //old level
+            Level = WaterTank.GetWaterLevel(PercentFull); //current level
+            bool fillingUp = waterLevel < Level;
+            switch (Level)
             {
                 case WaterLevel.VERY_LOW:
-                    let = EngineRoomServiceDB.LogEventType.WARNING;
+                    let = fillingUp ? EngineRoomServiceDB.LogEventType.INFO : EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("Water Level: {0} @ {1}% and {2}L remaining", Level, PercentFull, Remaining);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.MODERATE, desc);
+                    BBAlarmsService.AlarmState alarmState = fillingUp ? BBAlarmsService.AlarmState.OFF : BBAlarmsService.AlarmState.MODERATE;
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, alarmState, desc);
                     break;
                 case WaterLevel.EMPTY:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
