@@ -78,7 +78,7 @@ namespace BBEngineRoomService
             
         }
 
-        public const int PERCENTAGE_PRECISION = 5;
+        public const int PERCENTAGE_PRECISION = 1;
         public const int DEFAULT_SAMPLE_INTERVAL = 10000;
         public const int DEFAULT_SAMPLE_SIZE = 12;
 
