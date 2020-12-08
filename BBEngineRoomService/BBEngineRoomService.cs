@@ -18,7 +18,7 @@ namespace BBEngineRoomService
 {
     public class BBEngineRoomService : ADMService
     {
-        public const String BBER_VERSION = "1.1"; //used for loggin so as to know which 'version' is being started (useful for debugging)
+        public const String BBER_VERSION = "2020-12-07 01"; //used for loggin so as to know which 'version' is being started (useful for debugging)
 
         public const int TIMER_STATE_LOG_INTERVAL = 30 * 1000;
         public const int REQUEST_STATE_INTERVAL = 30 * 1000; //the interval by which to wait to request state of things like oil sensors and pumps
@@ -332,9 +332,9 @@ namespace BBEngineRoomService
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
                     _waterTanks.AddTank("wt1", 4, 5, 1200, 25, 110);
-                    _waterTanks.AddTank("wt2", 6, 7, 1100, 30, 105);
-                    _waterTanks.AddTank("wt3", 8, 9, 1100, 30, 105);
-                    _waterTanks.AddTank("wt4", 10, 11, 1100, 35, 105);
+                    _waterTanks.AddTank("wt2", 6, 7, 1100, 28, 105);
+                    _waterTanks.AddTank("wt3", 8, 9, 1100, 28, 105);
+                    _waterTanks.AddTank("wt4", 10, 11, 1100, 34, 105);
                     _waterTanks.Initialise(_erdb);
                     adm.AddDeviceGroup(_waterTanks);
                     break;
