@@ -19,6 +19,7 @@ namespace BBEngineRoomService
         public const String COMMAND_ENGINE_STATUS = "engine-status";
         public const String COMMAND_ENABLE_ENGINE = "enable-engine";
         public const String COMMAND_DISABLE_ENGINE = "disable-engine";
+        public const String COMMAND_PUMP_STATUS = "pump-status";
 
         public EngineRoomMessageSchema() { }
 
@@ -73,6 +74,10 @@ namespace BBEngineRoomService
             Message.AddValue("EngineRunning", engine.Running);
             Message.AddValue("EngineLastOn", engine.LastOn);
             Message.AddValue("EngineLastOff", engine.LastOff);
+            if (engine.RPM != null) Message.AddValue("RPMDeviceID", engine.RPM.ID);
+            if (engine.TempSensor != null) Message.AddValue("TempSensorID", engine.TempSensor.ID);
+            if (engine.OilSensor != null) Message.AddValue("OilSensorDeviceID", engine.OilSensor.ID);
+
         }
     } //end MessageSchema class
 }

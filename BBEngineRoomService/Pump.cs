@@ -31,7 +31,7 @@ namespace BBEngineRoomService
         public void Initialise(EngineRoomServiceDB erdb)
         {
             //get latest data
-            DBRow row = erdb.GetFirstOnAfterLastOff(ID); //to allow for reconnections which will naturally create an ON evnt
+            DBRow row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID);
             if (row != null)
             {
                 LastOn = row.GetDateTime("created");

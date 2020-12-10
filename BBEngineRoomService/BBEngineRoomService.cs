@@ -61,7 +61,7 @@ namespace BBEngineRoomService
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
         public bool Output2Console = false; //TODO: REMOVE THIS!!!
         
-        public BBEngineRoomService() : base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //base("BBEngineRoom", null, "ADMTestService", null) // 
+        public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) //base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") // 
         {
             Tracing?.TraceEvent(TraceEventType.Information, 0, "Constructing Service class version {0} ...", BBER_VERSION);
 
@@ -252,7 +252,7 @@ namespace BBEngineRoomService
 
                     //Pompa solar
                     _pompaSolar = new Pump(11, POMPA_SOLAR_ID);
-                    _pompaCelup.MaxOnDuration = 60 * 60; //raise an alarm if on for more than 60 minutes
+                    _pompaSolar.MaxOnDuration = 15 * 60; //raise an alarm if on for more than 15 minutes
                     _pompaSolar.Initialise(_erdb);
                     _pompaSolar.SampleInterval = REQUEST_STATE_INTERVAL;
                     _pompaSolar.SampleSize = 1;
@@ -547,9 +547,39 @@ namespace BBEngineRoomService
                     engine = GetEngine(args[0].ToString());
                     if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
                     schema.AddEngine(engine);
-                    if(engine.RPM != null)message.AddValue("RPMDeviceID", engine.RPM.ID);
-                    if(engine.TempSensor != null)message.AddValue("TempSensorID", engine.TempSensor.ID);
-                    if (engine.OilSensor != null)message.AddValue("OilSensorDeviceID", engine.OilSensor.ID);
+
+                    EngineRoomMessageSchema sc = new EngineRoomMessageSchema();
+                    if (engine.RPM != null)
+                    {
+                        sc.Message = new Message(MessageType.DATA, response.Target);
+                        sc.AddRPM(engine.RPM);
+                        Task.Run(() => {
+                            System.Threading.Thread.Sleep(500);
+                            SendMessage(sc.Message);
+                        });
+                        
+                    }
+
+                    if (engine.OilSensor != null)
+                    {
+                        sc.Message = new Message(MessageType.DATA, response.Target);
+                        sc.AddOilSensor(engine.OilSensor);
+                        Task.Run(() => {
+                            System.Threading.Thread.Sleep(500);
+                            SendMessage(sc.Message);
+                        });
+                    }
+
+                    if(engine.TempSensor != null)
+                    {
+                        sc.Message = new Message(MessageType.DATA, response.Target);
+                        sc.AddDS18B20Sensor(engine.TempSensor);
+                        Task.Run(() => {
+                            System.Threading.Thread.Sleep(500);
+                            SendMessage(sc.Message);
+                        });
+                    }
+
                     return true;
 
                 case EngineRoomMessageSchema.COMMAND_ENABLE_ENGINE:
@@ -564,6 +594,22 @@ namespace BBEngineRoomService
                         EngineRoomServiceDB.LogEventType let = engine.Enabled ? EngineRoomServiceDB.LogEventType.ENABLE : EngineRoomServiceDB.LogEventType.DISABLE;
                         _erdb.LogEvent(let, engine.ID, let.ToString() + " engine " + engine.ID);
                         schema.AddEngine(engine);
+                    }
+                    return true;
+
+                case EngineRoomMessageSchema.COMMAND_PUMP_STATUS:
+                    if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No pump specified");
+                    String pumpID = args[0].ToString();
+                    switch (pumpID)
+                    {
+                        case POMPA_CELUP_ID:
+                            schema.AddPump(_pompaCelup);
+                            break;
+                        case POMPA_SOLAR_ID:
+                            schema.AddPump(_pompaSolar);
+                            break;
+                        default:
+                            throw new Exception(String.Format("Unrecognised pump {0}", pumpID));
                     }
                     return true;
 
