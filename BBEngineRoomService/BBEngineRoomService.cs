@@ -510,8 +510,8 @@ namespace BBEngineRoomService
             AddCommandHelp(EngineRoomMessageSchema.COMMAND_TEST, "Used during development to test stuff");
             AddCommandHelp(EngineRoomMessageSchema.COMMAND_LIST_ENGINES, "List online engines");
             AddCommandHelp(EngineRoomMessageSchema.COMMAND_ENGINE_STATUS, "Gets status of <engineID>");
-            AddCommandHelp(EngineRoomMessageSchema.COMMAND_ENABLE_ENGINE, "Enable engine <engineID>");
-            AddCommandHelp(EngineRoomMessageSchema.COMMAND_DISABLE_ENGINE, "Disable engine <engineID>");
+            AddCommandHelp(EngineRoomMessageSchema.COMMAND_PUMP_STATUS, "Gets status of <pumpID>");
+            AddCommandHelp(EngineRoomMessageSchema.COMMAND_ENABLE_ENGINE, "Set engine <engineID> enabled to <true/false>");
         }
 
         override public bool HandleCommand(Connection cnn, Message message, String cmd, List<Object> args, Message response)
@@ -583,11 +583,10 @@ namespace BBEngineRoomService
                     return true;
 
                 case EngineRoomMessageSchema.COMMAND_ENABLE_ENGINE:
-                case EngineRoomMessageSchema.COMMAND_DISABLE_ENGINE:
                     if (args == null || args.Count < 1) throw new Exception("No engine specified");
                     engine = GetEngine(args[0].ToString());
                     if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
-                    bool enable = cmd.Equals(EngineRoomMessageSchema.COMMAND_ENABLE_ENGINE, StringComparison.OrdinalIgnoreCase);
+                    bool enable = args.Count > 1 ? System.Convert.ToBoolean(args[1]) : true;
                     if (enable != engine.Enabled)
                     {
                         engine.Enable(enable);
@@ -611,6 +610,7 @@ namespace BBEngineRoomService
                         default:
                             throw new Exception(String.Format("Unrecognised pump {0}", pumpID));
                     }
+                    response.Type = MessageType.DATA;
                     return true;
 
                 case BBAlarmsService.AlarmsMessageSchema.COMMAND_ALARM_STATUS:

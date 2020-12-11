@@ -18,7 +18,6 @@ namespace BBEngineRoomService
         public const String COMMAND_LIST_ENGINES = "list-engines";
         public const String COMMAND_ENGINE_STATUS = "engine-status";
         public const String COMMAND_ENABLE_ENGINE = "enable-engine";
-        public const String COMMAND_DISABLE_ENGINE = "disable-engine";
         public const String COMMAND_PUMP_STATUS = "pump-status";
 
         public EngineRoomMessageSchema() { }
@@ -28,6 +27,8 @@ namespace BBEngineRoomService
         public void AddPump(Pump pump)
         {
             Message.AddValue(ADMService.MessageSchema.DEVICE_ID, pump.ID);
+            Message.AddValue(ADMService.MessageSchema.DEVICE_NAME, pump.Name);
+            Message.AddValue("Enabled", pump.Enabled);
             Message.AddValue("State", pump.State);
             Message.AddValue("LastOn", pump.LastOn);
             Message.AddValue("LastOff", pump.LastOff);
