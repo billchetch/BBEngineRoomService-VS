@@ -19,6 +19,8 @@ namespace BBEngineRoomService
         public const String COMMAND_ENGINE_STATUS = "engine-status";
         public const String COMMAND_ENABLE_ENGINE = "enable-engine";
         public const String COMMAND_PUMP_STATUS = "pump-status";
+        public const String COMMAND_ENABLE_PUMP = "enable-pump";
+
 
         public EngineRoomMessageSchema() { }
 

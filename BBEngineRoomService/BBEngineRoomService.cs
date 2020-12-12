@@ -70,12 +70,12 @@ namespace BBEngineRoomService
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED1,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED1"; //,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
                 SupportedBoards = ArduinoDeviceManager.DEFAULT_BOARD_SET;
-                RequiredBoards = "2";
+                RequiredBoards = "1";
             }
             Tracing?.TraceEvent(TraceEventType.Information, 0, "Setting supported boards to {0} and required boards to  {1} ...", SupportedBoards, RequiredBoards);
 
@@ -212,6 +212,23 @@ namespace BBEngineRoomService
                 if (engine.ID != null && engine.ID.Equals(engineID)) return engine;
             }
             return null;
+        }
+
+        public Pump GetPump(String pumpID)
+        {
+            Pump pump;
+            switch (pumpID)
+            {
+                case POMPA_CELUP_ID:
+                    pump = _pompaCelup;
+                    break;
+                case POMPA_SOLAR_ID:
+                    pump = _pompaSolar;
+                    break;
+                default:
+                    throw new Exception(String.Format("Unrecognised pump {0}", pumpID));
+            }
+            return pump;
         }
 
         protected override void AddADMDevices(ArduinoDeviceManager adm, ADMMessage message)
@@ -521,6 +538,9 @@ namespace BBEngineRoomService
             EngineRoomMessageSchema schema = new EngineRoomMessageSchema(response);
             Engine engine;
             List<Engine> engines;
+            bool enable;
+
+            Pump pump;
             switch (cmd)
             {
                 case EngineRoomMessageSchema.COMMAND_TEST:
@@ -586,7 +606,7 @@ namespace BBEngineRoomService
                     if (args == null || args.Count < 1) throw new Exception("No engine specified");
                     engine = GetEngine(args[0].ToString());
                     if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
-                    bool enable = args.Count > 1 ? System.Convert.ToBoolean(args[1]) : true;
+                    enable = args.Count > 1 ? System.Convert.ToBoolean(args[1]) : true;
                     if (enable != engine.Enabled)
                     {
                         engine.Enable(enable);
@@ -598,19 +618,22 @@ namespace BBEngineRoomService
 
                 case EngineRoomMessageSchema.COMMAND_PUMP_STATUS:
                     if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No pump specified");
-                    String pumpID = args[0].ToString();
-                    switch (pumpID)
-                    {
-                        case POMPA_CELUP_ID:
-                            schema.AddPump(_pompaCelup);
-                            break;
-                        case POMPA_SOLAR_ID:
-                            schema.AddPump(_pompaSolar);
-                            break;
-                        default:
-                            throw new Exception(String.Format("Unrecognised pump {0}", pumpID));
-                    }
+                    pump = GetPump(args[0].ToString());
+                    schema.AddPump(pump);
                     response.Type = MessageType.DATA;
+                    return true;
+
+                case EngineRoomMessageSchema.COMMAND_ENABLE_PUMP:
+                    if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No pump specified");
+                    pump = GetPump(args[0].ToString());
+                    enable = args.Count > 1 ? System.Convert.ToBoolean(args[1]) : true;
+                    if (enable != pump.Enabled)
+                    {
+                        pump.Enable(enable);
+                        EngineRoomServiceDB.LogEventType let = pump.Enabled ? EngineRoomServiceDB.LogEventType.ENABLE : EngineRoomServiceDB.LogEventType.DISABLE;
+                        _erdb.LogEvent(let, pump.ID, let.ToString() + " pump " + pump.ID);
+                        schema.AddPump(pump);
+                    }
                     return true;
 
                 case BBAlarmsService.AlarmsMessageSchema.COMMAND_ALARM_STATUS:
