@@ -20,7 +20,9 @@ namespace BBEngineRoomService
         public const String COMMAND_ENABLE_ENGINE = "enable-engine";
         public const String COMMAND_PUMP_STATUS = "pump-status";
         public const String COMMAND_ENABLE_PUMP = "enable-pump";
-
+        public const String COMMAND_WATER_STATUS = "water-status";
+        public const String COMMAND_ENABLE_WATER = "enable-water";
+        public const String COMMAND_WATER_TANK_STATUS = "water-tank-status";
 
         public EngineRoomMessageSchema() { }
 
@@ -81,6 +83,33 @@ namespace BBEngineRoomService
             if (engine.TempSensor != null) Message.AddValue("TempSensorID", engine.TempSensor.ID);
             if (engine.OilSensor != null) Message.AddValue("OilSensorDeviceID", engine.OilSensor.ID);
 
+        }
+
+        public void AddWaterTank(WaterTanks.WaterTank waterTank)
+        {
+            Message.AddValue(ADMService.MessageSchema.DEVICE_ID, waterTank.ID);
+            Message.AddValue(ADMService.MessageSchema.DEVICE_NAME, waterTank.Name);
+            Message.AddValue("Capacity", waterTank.Capacity);
+            Message.AddValue("PercentFull", waterTank.PercentFull);
+            Message.AddValue("Remaining", waterTank.Remaining);
+            Message.AddValue("Level", waterTank.Level);
+            Message.AddValue("Distance", waterTank.Distance);
+            Message.AddValue("Enabled", waterTank.Enabled);
+        }
+
+        public void AddWaterTanks(WaterTanks waterTanks)
+        {
+            List<String> ids = new List<String>();
+            foreach(WaterTanks.WaterTank tank in waterTanks.Tanks)
+            {
+                ids.Add(tank.ID);
+            }
+            Message.AddValue("Tanks", ids);
+            Message.AddValue("Capacity", waterTanks.Capacity);
+            Message.AddValue("PercentFull", waterTanks.PercentFull);
+            Message.AddValue("Remaining", waterTanks.Remaining);
+            Message.AddValue("Level", waterTanks.Level);
+            Message.AddValue("Enabled", waterTanks.Enabled);
         }
     } //end MessageSchema class
 }

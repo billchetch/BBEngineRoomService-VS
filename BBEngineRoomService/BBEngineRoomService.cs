@@ -70,7 +70,7 @@ namespace BBEngineRoomService
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED1"; //,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED1,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
@@ -79,7 +79,7 @@ namespace BBEngineRoomService
             }
             Tracing?.TraceEvent(TraceEventType.Information, 0, "Setting supported boards to {0} and required boards to  {1} ...", SupportedBoards, RequiredBoards);
 
-            ADMInactivityTimeout = 20000; //To allow for BBED3 sampling at 10secs ADM_INACTIVITY_TIMEOUT; //default of 10,000
+            ADMInactivityTimeout = TIMER_STATE_LOG_INTERVAL + 5000; //To allow for all devices to be disabled on a board and so therefore not being sent messages (see OnStateLogTimer)
 
             Sampler.SampleProvided += HandleSampleProvided;
             Sampler.SampleError += HandleSampleError;
@@ -143,6 +143,12 @@ namespace BBEngineRoomService
             if (_waterTanks != null)
             {
                 _waterTanks.LogState(_erdb);
+            }
+
+            //we ping all the boards to avoid timeouts in teh case where all the devices on a board are disabled
+            foreach(var adm in ADMS.Values)
+            {
+                if(adm.IsConnected)adm.Ping();
             }
         }
 
@@ -435,6 +441,7 @@ namespace BBEngineRoomService
                         {
                             //schema.AddWaterTanks(_waterTanks);
                             WaterTanks.WaterTank wt = ((WaterTanks.WaterTank)dev);
+                            schema.AddWaterTank(wt);
                             if(Output2Console)Console.WriteLine("****************>: Water Tank {0} distance / average distance / percent / percent full: {1} / {2} / {3} / {4}", wt.ID, wt.Distance, wt.AverageDistance, wt.Percentage, wt.PercentFull);
                         }
                     }
@@ -529,6 +536,9 @@ namespace BBEngineRoomService
             AddCommandHelp(EngineRoomMessageSchema.COMMAND_ENGINE_STATUS, "Gets status of <engineID>");
             AddCommandHelp(EngineRoomMessageSchema.COMMAND_PUMP_STATUS, "Gets status of <pumpID>");
             AddCommandHelp(EngineRoomMessageSchema.COMMAND_ENABLE_ENGINE, "Set engine <engineID> enabled to <true/false>");
+            AddCommandHelp(EngineRoomMessageSchema.COMMAND_WATER_STATUS, "Gets status of water tanks group");
+            AddCommandHelp(EngineRoomMessageSchema.COMMAND_ENABLE_WATER, "Set water tanks enabled to <true/false>");
+            AddCommandHelp(EngineRoomMessageSchema.COMMAND_WATER_TANK_STATUS, "Gets status of <water tank ID>");
         }
 
         override public bool HandleCommand(Connection cnn, Message message, String cmd, List<Object> args, Message response)
@@ -568,13 +578,12 @@ namespace BBEngineRoomService
                     if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
                     schema.AddEngine(engine);
 
-                    EngineRoomMessageSchema sc = new EngineRoomMessageSchema();
                     if (engine.RPM != null)
                     {
-                        sc.Message = new Message(MessageType.DATA, response.Target);
-                        sc.AddRPM(engine.RPM);
                         Task.Run(() => {
-                            System.Threading.Thread.Sleep(500);
+                            System.Threading.Thread.Sleep(250);
+                            EngineRoomMessageSchema sc = new EngineRoomMessageSchema(new Message(MessageType.DATA, response.Target));
+                            sc.AddRPM(engine.RPM);
                             SendMessage(sc.Message);
                         });
                         
@@ -582,20 +591,20 @@ namespace BBEngineRoomService
 
                     if (engine.OilSensor != null)
                     {
-                        sc.Message = new Message(MessageType.DATA, response.Target);
-                        sc.AddOilSensor(engine.OilSensor);
                         Task.Run(() => {
-                            System.Threading.Thread.Sleep(500);
+                            System.Threading.Thread.Sleep(250);
+                            EngineRoomMessageSchema sc = new EngineRoomMessageSchema(new Message(MessageType.DATA, response.Target));
+                            sc.AddOilSensor(engine.OilSensor);
                             SendMessage(sc.Message);
                         });
                     }
 
                     if(engine.TempSensor != null)
                     {
-                        sc.Message = new Message(MessageType.DATA, response.Target);
-                        sc.AddDS18B20Sensor(engine.TempSensor);
                         Task.Run(() => {
-                            System.Threading.Thread.Sleep(500);
+                            System.Threading.Thread.Sleep(250);
+                            EngineRoomMessageSchema sc = new EngineRoomMessageSchema(new Message(MessageType.DATA, response.Target));
+                            sc.AddDS18B20Sensor(engine.TempSensor);
                             SendMessage(sc.Message);
                         });
                     }
@@ -633,6 +642,28 @@ namespace BBEngineRoomService
                         EngineRoomServiceDB.LogEventType let = pump.Enabled ? EngineRoomServiceDB.LogEventType.ENABLE : EngineRoomServiceDB.LogEventType.DISABLE;
                         _erdb.LogEvent(let, pump.ID, let.ToString() + " pump " + pump.ID);
                         schema.AddPump(pump);
+                    }
+                    return true;
+
+                case EngineRoomMessageSchema.COMMAND_WATER_TANK_STATUS:
+                    if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No tank specified");
+                    WaterTanks.WaterTank waterTank = (WaterTanks.WaterTank)_waterTanks.GetDevice(args[0].ToString());
+                    schema.AddWaterTank(waterTank);
+                    response.Type = MessageType.DATA;
+                    return true;
+
+                case EngineRoomMessageSchema.COMMAND_WATER_STATUS:
+                    schema.AddWaterTanks(_waterTanks);
+                    return true;
+
+                case EngineRoomMessageSchema.COMMAND_ENABLE_WATER:
+                    enable = args.Count > 0 ? System.Convert.ToBoolean(args[0]) : true;
+                    if(enable != _waterTanks.Enabled)
+                    {
+                        _waterTanks.Enable(enable);
+                        EngineRoomServiceDB.LogEventType let = _waterTanks.Enabled ? EngineRoomServiceDB.LogEventType.ENABLE : EngineRoomServiceDB.LogEventType.DISABLE;
+                        _erdb.LogEvent(let, _waterTanks.ID, let.ToString() + " water tanks");
+                        schema.AddWaterTanks(_waterTanks);
                     }
                     return true;
 

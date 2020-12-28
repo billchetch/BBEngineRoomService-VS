@@ -128,7 +128,7 @@ namespace BBEngineRoomService
             Message msg = null;
             //see if engine is Running (and log)
             bool running = Running; // record to test change of state
-            Running = RPM.RPM > IS_RUNNING_RPM_THRESHOLD;
+            Running = RPM.AverageRPM > IS_RUNNING_RPM_THRESHOLD;
 
             if(running != Running) //log
             {
@@ -146,11 +146,11 @@ namespace BBEngineRoomService
             //Hence we ask for the current state and see if it matches the previous recorded state to ensure some stability
             //Only if it is consistent over this period of time do we update the StateOfOil propery, log and produce messages/alerts
             OilState oilState = StateOfOil;
-            if (Running && secsSinceLastOn > 5)
+            if (Running && secsSinceLastOn > 30)
             {
                 oilState = OilSensor.IsOn ? OilState.NO_PRESSURE : OilState.OK_ENGINE_ON;
             }
-            else if (!Running && secsSinceLastOff > 5)
+            else if (!Running && secsSinceLastOff > 30)
             {
                 oilState = OilSensor.IsOff ? OilState.SENSOR_FAULT : OilState.OK_ENGINE_OFF;
             }
