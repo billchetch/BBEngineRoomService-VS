@@ -61,7 +61,7 @@ namespace BBEngineRoomService
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
         public bool Output2Console = false; //TODO: REMOVE THIS!!!
         
-        public BBEngineRoomService() : base("BBEngineRoom", null, "ADMTestService", null) //base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") // 
+        public BBEngineRoomService() : base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") // base("BBEngineRoom", null, "ADMTestService", null) // 
         {
             Tracing?.TraceEvent(TraceEventType.Information, 0, "Constructing Service class version {0} ...", BBER_VERSION);
 
@@ -70,7 +70,7 @@ namespace BBEngineRoomService
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED1,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED3,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
@@ -357,7 +357,7 @@ namespace BBEngineRoomService
                     _waterTanks.AddTank("wt1", 4, 5, 1200, 25, 110);
                     _waterTanks.AddTank("wt2", 6, 7, 1100, 28, 105);
                     _waterTanks.AddTank("wt3", 8, 9, 1100, 28, 105);
-                    _waterTanks.AddTank("wt4", 10, 11, 1100, 34, 105);
+                    _waterTanks.AddTank("wt4", 10, 11, 1100, 32, 105);
                     _waterTanks.Initialise(_erdb);
                     adm.AddDeviceGroup(_waterTanks);
                     break;
@@ -437,12 +437,12 @@ namespace BBEngineRoomService
                             }
                         }
 
-                        if(dev is WaterTanks.WaterTank)
+                        if(dev is WaterTanks.FluidTank)
                         {
-                            //schema.AddWaterTanks(_waterTanks);
-                            WaterTanks.WaterTank wt = ((WaterTanks.WaterTank)dev);
-                            schema.AddWaterTank(wt);
-                            if(Output2Console)Console.WriteLine("****************>: Water Tank {0} distance / average distance / percent / percent full: {1} / {2} / {3} / {4}", wt.ID, wt.Distance, wt.AverageDistance, wt.Percentage, wt.PercentFull);
+                            schema.AddWaterTanks(_waterTanks);
+                            WaterTanks.FluidTank ft = ((WaterTanks.FluidTank)dev);
+                            schema.AddWaterTank(ft);
+                            if(Output2Console)Console.WriteLine("****************>: Water Tank {0} distance / average distance / percent / percent full: {1} / {2} / {3} / {4}", ft.ID, ft.Distance, ft.AverageDistance, ft.Percentage, ft.PercentFull);
                         }
                     }
                     else
@@ -647,7 +647,7 @@ namespace BBEngineRoomService
 
                 case EngineRoomMessageSchema.COMMAND_WATER_TANK_STATUS:
                     if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No tank specified");
-                    WaterTanks.WaterTank waterTank = (WaterTanks.WaterTank)_waterTanks.GetDevice(args[0].ToString());
+                    WaterTanks.FluidTank waterTank = (WaterTanks.FluidTank)_waterTanks.GetDevice(args[0].ToString());
                     schema.AddWaterTank(waterTank);
                     response.Type = MessageType.DATA;
                     return true;

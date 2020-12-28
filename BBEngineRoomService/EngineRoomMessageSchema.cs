@@ -85,7 +85,7 @@ namespace BBEngineRoomService
 
         }
 
-        public void AddWaterTank(WaterTanks.WaterTank waterTank)
+        public void AddWaterTank(WaterTanks.FluidTank waterTank)
         {
             Message.AddValue(ADMService.MessageSchema.DEVICE_ID, waterTank.ID);
             Message.AddValue(ADMService.MessageSchema.DEVICE_NAME, waterTank.Name);
@@ -100,7 +100,7 @@ namespace BBEngineRoomService
         public void AddWaterTanks(WaterTanks waterTanks)
         {
             List<String> ids = new List<String>();
-            foreach(WaterTanks.WaterTank tank in waterTanks.Tanks)
+            foreach(WaterTanks.FluidTank tank in waterTanks.Tanks)
             {
                 ids.Add(tank.ID);
             }

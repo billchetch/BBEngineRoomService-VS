@@ -10,141 +10,12 @@ using Chetch.Database;
 
 namespace BBEngineRoomService
 {
-    public class WaterTanks : Chetch.Arduino.ArduinoDeviceGroup, IMonitorable
+    public class WaterTanks : Chetch.Arduino.DeviceGroups.FluidTanks, IMonitorable
     {
-        public enum WaterLevel
-        {
-            EMPTY,
-            VERY_LOW,
-            LOW,
-            OK,
-            FULL
-        }
-
-        public class WaterTank : JSN_SR04T
-        {
-            public static WaterLevel GetWaterLevel(int percentFull)
-            {
-                if (percentFull <= PERCENTAGE_PRECISION)
-                {
-                    return WaterLevel.EMPTY;
-                }
-                else if (percentFull <= 2 * PERCENTAGE_PRECISION)
-                {
-                    return WaterLevel.VERY_LOW;
-                }
-                else if (percentFull <= 4 * PERCENTAGE_PRECISION)
-                {
-                    return WaterLevel.LOW;
-                }
-                else if (percentFull <= 100 - PERCENTAGE_PRECISION)
-                {
-                    return WaterLevel.OK;
-                }
-                else
-                {
-                    return WaterLevel.FULL;
-                }
-            }
-
-            public int Capacity { get; set; } = 0; //Capacity in L
-
-            public int PercentFull 
-            { 
-                get
-                {
-                    return 100 - ((int)Math.Round(AveragePercentage / (double)PERCENTAGE_PRECISION) * PERCENTAGE_PRECISION);
-                } 
-            }
-
-            public int Remaining
-            {
-                get
-                {
-                    return (int)(((double)PercentFull / 100.0) * Capacity);
-                }
-            }
-
-            public WaterLevel Level
-            {
-                get
-                {
-                    return GetWaterLevel(PercentFull);
-                }
-            }
-
-            public WaterTank(int transmitPin, int receivePin, String id) : base(transmitPin, receivePin, id) { }
         
-            
-        }
-
-        public const int PERCENTAGE_PRECISION = 1;
-        public const int DEFAULT_SAMPLE_INTERVAL = 10000;
-        public const int DEFAULT_SAMPLE_SIZE = 12;
-
-        public int SampleInterval { get; set; } = DEFAULT_SAMPLE_INTERVAL;
-        public int SampleSize { get; set; } = DEFAULT_SAMPLE_SIZE;
-
-        public List<WaterTank> Tanks { get; } = new List<WaterTank>();
-
-        public int PercentFull
-        {
-            get
-            {
-                if (Tanks.Count == 0) return 0;
-                double percentFull = 100.0 * ((double)Remaining / (double)Capacity);
-                return ((int)Math.Round(percentFull / (double)PERCENTAGE_PRECISION) * PERCENTAGE_PRECISION);
-            }
-        }
-
-        public int Remaining
-        {
-            get
-            {
-                int totalRemaining = 0;
-                foreach (var wt in Tanks)
-                {
-                    totalRemaining += wt.Remaining;
-                }
-                return totalRemaining;
-            }
-        }
-
-        public int Capacity
-        {
-            get
-            {
-                int totalCapacity = 0;
-                foreach (var wt in Tanks)
-                {
-                    totalCapacity += wt.Capacity;
-                }
-                return totalCapacity;
-            }
-        }
-
-        public WaterLevel Level { get; set; }
-
         private DateTime _initialisedAt;
 
-        public WaterTanks() : base("wts", null) { }
-
-        public WaterTank AddTank(String id, int transmitPin, int receivePin, int capacity, int minDistance = JSN_SR04T.MIN_DISTANCE, int maxDistance = JSN_SR04T.MAX_DISTANCE)
-        {
-            WaterTank wt = new WaterTank(transmitPin, receivePin, id);
-            wt.Capacity = capacity;
-            wt.MinDistance = minDistance;
-            wt.MaxDistance = maxDistance;
-            wt.Offset = 3;
-
-            wt.SampleInterval = SampleInterval;
-            wt.SampleSize = SampleSize;
-
-            Tanks.Add(wt);
-            AddDevice(wt);
-
-            return wt;
-        }
+        public WaterTanks() : base("wts") { }
 
         public void Initialise(EngineRoomServiceDB erdb)
         {
@@ -177,18 +48,18 @@ namespace BBEngineRoomService
             String desc = null;
             EngineRoomServiceDB.LogEventType let;
 
-            WaterLevel waterLevel = Level; //old level
-            Level = WaterTank.GetWaterLevel(PercentFull); //current level
+            FluidLevel waterLevel = Level; //old level
+            Level = FluidTank.GetFluidLevel(PercentFull); //current level
             bool fillingUp = waterLevel < Level;
             switch (Level)
             {
-                case WaterLevel.VERY_LOW:
+                case FluidLevel.VERY_LOW:
                     let = fillingUp ? EngineRoomServiceDB.LogEventType.INFO : EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("Water Level: {0} @ {1}% and {2}L remaining", Level, PercentFull, Remaining);
                     BBAlarmsService.AlarmState alarmState = fillingUp ? BBAlarmsService.AlarmState.OFF : BBAlarmsService.AlarmState.MODERATE;
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, alarmState, desc);
                     break;
-                case WaterLevel.EMPTY:
+                case FluidLevel.EMPTY:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("Water Level: {0} @ {1}% and {2}L remaining", Level, PercentFull, Remaining);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.SEVERE, desc);
@@ -213,10 +84,10 @@ namespace BBEngineRoomService
             if (Tanks.Count == 0 || !Enabled || DateTime.Now.Subtract(_initialisedAt).TotalSeconds < 45) return;
 
             String desc;
-            foreach (WaterTank wt in Tanks)
+            foreach (FluidTank ft in Tanks)
             {
-                desc = String.Format("Water tank {0} is {1}% full (distance = {2}) and has {3}L remaining ... level is {4}", wt.ID, wt.PercentFull, wt.AverageDistance, wt.Remaining, wt.Level);
-                erdb.LogState(wt.ID, "Water Tanks", wt.PercentFull, desc);
+                desc = String.Format("Water tank {0} is {1}% full (distance = {2}) and has {3}L remaining ... level is {4}", ft.ID, ft.PercentFull, ft.AverageDistance, ft.Remaining, ft.Level);
+                erdb.LogState(ft.ID, "Water Tanks", ft.PercentFull, desc);
             }
 
             desc = String.Format("Remaining water @ {0}%, {1}L ... level is {2}", PercentFull, Remaining, Level);
