@@ -81,9 +81,12 @@ namespace BBEngineRoomService
         private OilState _prevOilState = OilState.OK_ENGINE_OFF;
 
         public TemperatureState StateOfTemperature { get; internal set; } = TemperatureState.OK;
-        public RPMState StateOfRPM { get; internal set; } = RPMState.OFF;
+        public Dictionary<TemperatureState, int> TemperatureThresholds { get; internal set; } = new Dictionary<TemperatureState, int>();
 
-        
+        public RPMState StateOfRPM { get; internal set; } = RPMState.OFF;
+        public Dictionary<RPMState, int> RPMThresholds { get; internal set; } = new Dictionary<RPMState, int>();
+
+
 
         public Engine(String id, RPMCounter rpm, OilSensorSwitch oilSensor, DS18B20Array.DS18B20Sensor tempSensor) : base(id, null)
         {
@@ -92,6 +95,22 @@ namespace BBEngineRoomService
             TempSensor = tempSensor;
             AddDevice(RPM);
             AddDevice(OilSensor);
+
+            SetTempertureThresholds(50, 65);
+            SetRPMThresholds(500, 1650, 1800);
+        }
+
+        public void SetTempertureThresholds(int thresholdOk, int thresholdHot)
+        {
+            TemperatureThresholds[TemperatureState.OK] = thresholdOk;
+            TemperatureThresholds[TemperatureState.HOT] = thresholdHot; 
+        }
+
+        public void SetRPMThresholds(int thresholdSlow, int thresholdNormal, int thresholdFast)
+        {
+            RPMThresholds[RPMState.SLOW] = thresholdSlow;
+            RPMThresholds[RPMState.NORMAL] = thresholdNormal;
+            RPMThresholds[RPMState.FAST] = thresholdFast;
         }
 
         public void Initialise(EngineRoomServiceDB erdb)
@@ -107,7 +126,7 @@ namespace BBEngineRoomService
             bool enable = true;
             if (disabled != null)
             {
-                enable = enabled == null ? false : enabled.GetDateTime("created").Ticks > enabled.GetDateTime("created").Ticks;
+                enable = enabled == null ? false : enabled.GetDateTime("created").Ticks > disabled.GetDateTime("created").Ticks;
             }
             else if (enabled != null)
             {
@@ -132,8 +151,15 @@ namespace BBEngineRoomService
 
             if(running != Running) //log
             {
-                let = Running ? EngineRoomServiceDB.LogEventType.ON : EngineRoomServiceDB.LogEventType.OFF;
-                erdb.LogEvent(let, ID, String.Format("RPM = {0}", RPM.RPM));
+                if (Running)
+                {
+                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.ON, ID, String.Format("RPM = {0}", RPM.RPM));
+                    LastOn = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID).GetDateTime("created");
+                } else
+                {
+                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.OFF, ID, String.Format("RPM = {0}", RPM.RPM));
+                    LastOff = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID).GetDateTime("created");
+                }
             }
 
             //some useful durations...
@@ -202,11 +228,11 @@ namespace BBEngineRoomService
             //Temp state
             msg = null;
             TemperatureState tempState = StateOfTemperature; //keep a record
-            if (!Running || TempSensor.AverageTemperature <= 50)
+            if (!Running || (TempSensor.AverageTemperature <= TemperatureThresholds[TemperatureState.OK]))
             {
                 StateOfTemperature = TemperatureState.OK;
             }
-            else if (TempSensor.AverageTemperature <= 65)
+            else if (TempSensor.AverageTemperature <= TemperatureThresholds[TemperatureState.HOT])
             {
                 StateOfTemperature = TemperatureState.HOT;
             }
@@ -219,23 +245,24 @@ namespace BBEngineRoomService
                 case TemperatureState.TOO_HOT:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("Temp sensor: {0} {1}", TempSensor.AverageTemperature, StateOfTemperature);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.CRITICAL, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(TempSensor.ID, BBAlarmsService.AlarmState.CRITICAL, desc);
                     break;
                 case TemperatureState.HOT:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("Temp sensor: {0} {1}", TempSensor.AverageTemperature, StateOfTemperature);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(TempSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
                     break;
                 case TemperatureState.OK:
                     let = EngineRoomServiceDB.LogEventType.INFO;
                     desc = String.Format("Temp sensor: {0} {1}", TempSensor.AverageTemperature, StateOfTemperature);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(TempSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
                     break;
             }
             if (msg != null && (tempState != StateOfTemperature || !returnEventsOnly))
             {
                 messages.Add(msg);
                 if (returnEventsOnly) erdb.LogEvent(let, TempSensor.ID, desc);
+                Console.WriteLine("!!! {0} ... {1}", TempSensor.ID, desc);
             }
 
             //RPM state
@@ -245,15 +272,15 @@ namespace BBEngineRoomService
             {
                 StateOfRPM = RPMState.OFF;
             } else if (secsSinceLastOn > 10) {
-                if (RPM.AverageRPM < 500)
+                if (RPM.AverageRPM < RPMThresholds[RPMState.SLOW])
                 {
                     StateOfRPM = RPMState.SLOW;
                 }
-                else if (RPM.AverageRPM < 1650)
+                else if (RPM.AverageRPM < RPMThresholds[RPMState.NORMAL])
                 {
                     StateOfRPM = RPMState.NORMAL;
                 }
-                else if (RPM.AverageRPM < 1800)
+                else if (RPM.AverageRPM < RPMThresholds[RPMState.FAST])
                 {
                     StateOfRPM = RPMState.FAST;
                 }
@@ -269,19 +296,19 @@ namespace BBEngineRoomService
                 case RPMState.NORMAL:
                     let = EngineRoomServiceDB.LogEventType.INFO;
                     desc = String.Format("RPM (Instant/Average): {0}/{1} gives state {2}", RPM.RPM, RPM.AverageRPM, StateOfRPM);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(RPM.ID, BBAlarmsService.AlarmState.OFF, desc);
                     break;
 
                 case RPMState.FAST:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("RPM (Instant/Average): {0}/{1} gives state {2}", RPM.RPM, RPM.AverageRPM, StateOfRPM);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(RPM.ID, BBAlarmsService.AlarmState.MODERATE, desc);
                     break;
 
                 case RPMState.TOO_FAST:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("RPM (Instant/Average): {0}/{1} gives state {2}", RPM.RPM, RPM.AverageRPM, StateOfRPM);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(RPM.ID, BBAlarmsService.AlarmState.SEVERE, desc);
                     break;
             }
             if (msg != null && (rpmState != StateOfRPM || !returnEventsOnly))

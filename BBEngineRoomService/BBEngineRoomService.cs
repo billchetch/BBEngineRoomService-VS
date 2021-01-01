@@ -18,7 +18,7 @@ namespace BBEngineRoomService
 {
     public class BBEngineRoomService : ADMService
     {
-        public const String BBER_VERSION = "2020-12-07 01"; //used for loggin so as to know which 'version' is being started (useful for debugging)
+        public const String BBER_VERSION = "2020-12-28 01"; //used for loggin so as to know which 'version' is being started (useful for debugging)
 
         public const int TIMER_STATE_LOG_INTERVAL = 30 * 1000;
         public const int REQUEST_STATE_INTERVAL = 30 * 1000; //the interval by which to wait to request state of things like oil sensors and pumps
@@ -61,7 +61,7 @@ namespace BBEngineRoomService
         public bool PauseOutput = false; //TODO: REMOVE THIS!!!
         public bool Output2Console = false; //TODO: REMOVE THIS!!!
         
-        public BBEngineRoomService() : base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") // base("BBEngineRoom", null, "ADMTestService", null) // 
+        public BBEngineRoomService() :  base("BBEngineRoom", null, "ADMTestService", null) //base("BBEngineRoom", "BBERClient", "BBEngineRoomService", "BBEngineRoomServiceLog") //
         {
             Tracing?.TraceEvent(TraceEventType.Information, 0, "Constructing Service class version {0} ...", BBER_VERSION);
 
@@ -70,7 +70,7 @@ namespace BBEngineRoomService
             if (PortSharing)
             {
                 SupportedBoards = ArduinoDeviceManager.XBEE_DIGI;
-                RequiredBoards = "BBED3,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
+                RequiredBoards = "BBED1,BBED2,BBED3";  //For connection purposes Use XBee NodeIDs to identify boards rather than their ID
             }
             else
             {
@@ -119,36 +119,42 @@ namespace BBEngineRoomService
 
         protected void OnStateLogTimer(Object sender, System.Timers.ElapsedEventArgs eventArgs)
         {
-            //build up a picture of the state of the engine room and log it
-            List<Engine> engines = GetEngines();
-            if (engines != null)
+            try
             {
-                foreach (Engine engine in engines)
+                //build up a picture of the state of the engine room and log it
+                List<Engine> engines = GetEngines();
+                if (engines != null)
                 {
-                    engine.LogState(_erdb);
+                    foreach (Engine engine in engines)
+                    {
+                        engine.LogState(_erdb);
+                    }
                 }
-            }
 
-            //do pumps
-            if(_pompaCelup != null)
-            {
-                _pompaCelup.LogState(_erdb);
-            }
-            if(_pompaSolar != null)
-            {
-                _pompaSolar.LogState(_erdb);
-            }
+                //do pumps
+                if (_pompaCelup != null)
+                {
+                    _pompaCelup.LogState(_erdb);
+                }
+                if (_pompaSolar != null)
+                {
+                    _pompaSolar.LogState(_erdb);
+                }
 
-            //do the water tanks
-            if (_waterTanks != null)
-            {
-                _waterTanks.LogState(_erdb);
-            }
+                //do the water tanks
+                if (_waterTanks != null)
+                {
+                    _waterTanks.LogState(_erdb);
+                }
 
-            //we ping all the boards to avoid timeouts in teh case where all the devices on a board are disabled
-            foreach(var adm in ADMS.Values)
+                //we ping all the boards to avoid timeouts in teh case where all the devices on a board are disabled
+                foreach (var adm in ADMS.Values)
+                {
+                    if (adm.IsConnected) adm.Ping();
+                }
+            } catch (Exception e)
             {
-                if(adm.IsConnected)adm.Ping();
+                Tracing?.TraceEvent(TraceEventType.Error, 0, "BBEngineRoomService::OnStateLogTimer {0}", e.Message);
             }
         }
 
@@ -157,28 +163,40 @@ namespace BBEngineRoomService
             bool eventsOnly = sender != null;
             List<Message> msgs = new List<Message>();
 
-            List<Engine> engines = GetEngines();
-            if (engines != null)
+            try
             {
-                foreach (Engine engine in engines)
+                List<Engine> engines = GetEngines();
+                if (engines != null)
                 {
-                    engine.Monitor(_erdb, msgs, eventsOnly);
+                    foreach (Engine engine in engines)
+                    {
+                        engine.Monitor(_erdb, msgs, eventsOnly);
+                    }
                 }
-            }
 
-            //do pumps
-            if (_pompaCelup != null)
-            {
-                _pompaCelup.Monitor(_erdb, msgs, eventsOnly);
-            }
-            if (_pompaSolar != null)
-            {
-                _pompaSolar.Monitor(_erdb, msgs, eventsOnly);
-            }
+                //do pumps
+                if (_pompaCelup != null)
+                {
+                    _pompaCelup.Monitor(_erdb, msgs, eventsOnly);
+                }
+                if (_pompaSolar != null)
+                {
+                    _pompaSolar.Monitor(_erdb, msgs, eventsOnly);
+                }
 
-            if (_waterTanks != null)
+                if (_waterTanks != null)
+                {
+                    _waterTanks.Monitor(_erdb, msgs, eventsOnly);
+                }
+
+                //now we broadcast the messages
+                foreach (var msg in msgs)
+                {
+                    Broadcast(msg);
+                }
+            } catch (Exception e)
             {
-                _waterTanks.Monitor(_erdb, msgs, eventsOnly);
+                Tracing?.TraceEvent(TraceEventType.Error, 0, "BBEngineRoomService::OnMonitorEngineRoomTimer {0}", e.Message);
             }
         }
 
@@ -354,7 +372,7 @@ namespace BBEngineRoomService
 
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
-                    _waterTanks.AddTank("wt1", 4, 5, 1200, 25, 110);
+                    _waterTanks.AddTank("wt1", 4, 5, 1200, 28, 110);
                     _waterTanks.AddTank("wt2", 6, 7, 1100, 28, 105);
                     _waterTanks.AddTank("wt3", 8, 9, 1100, 28, 105);
                     _waterTanks.AddTank("wt4", 10, 11, 1100, 32, 105);
