@@ -87,11 +87,11 @@ namespace BBEngineRoomService
             foreach (FluidTank ft in Tanks)
             {
                 desc = String.Format("Water tank {0} is {1}% full (distance = {2}) and has {3}L remaining ... level is {4}", ft.ID, ft.PercentFull, ft.AverageDistance, ft.Remaining, ft.Level);
-                erdb.LogState(ft.ID, "Water Tanks", ft.PercentFull, desc);
+                erdb.LogState(ft.ID, "Percent Full", ft.PercentFull, desc);
             }
 
             desc = String.Format("Remaining water @ {0}%, {1}L ... level is {2}", PercentFull, Remaining, Level);
-            erdb.LogState(ID, "Water Tanks", PercentFull, desc);
+            erdb.LogState(ID, "Percent Full", PercentFull, desc);
         }
     }
 }

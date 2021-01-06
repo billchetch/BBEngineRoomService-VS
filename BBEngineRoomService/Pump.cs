@@ -65,7 +65,7 @@ namespace BBEngineRoomService
             if (!Enabled) return;
 
             String desc = IsOn ? String.Format("On @ {0} for {1} secs", LastOn, DateTime.Now.Subtract(LastOn).TotalSeconds) : String.Empty;
-            erdb.LogState(ID, "Pump On", State, desc);
+            erdb.LogState(ID, "Pumping", State, desc);
         }
 
         public void Monitor(EngineRoomServiceDB erdb, List<Message> messages, bool returnEventsOnly)

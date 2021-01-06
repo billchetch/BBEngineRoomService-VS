@@ -262,7 +262,6 @@ namespace BBEngineRoomService
             {
                 messages.Add(msg);
                 if (returnEventsOnly) erdb.LogEvent(let, TempSensor.ID, desc);
-                Console.WriteLine("!!! {0} ... {1}", TempSensor.ID, desc);
             }
 
             //RPM state
