@@ -516,6 +516,16 @@ namespace BBEngineRoomService
                 case MessageType.PING_RESPONSE:
                     //Console.WriteLine("Ping received from {0} ... gives AI={1}, FM={2},  MS={3}", adm.BoardID, message.GetValue("AI"), message.GetValue("FM"), message.GetValue("MS")); ;
                     break;
+
+                case MessageType.ERROR:
+                    try
+                    {
+                        _erdb.LogEvent(EngineRoomServiceDB.LogEventType.ERROR, message.HasValue("ErrorSource") ? message.GetString("ErrorSource") : adm.PortAndNodeID, message.Value);
+                    } catch (Exception e)
+                    {
+                        Tracing?.TraceEvent(TraceEventType.Error, 0, e.Message);
+                    }
+                    break;
             }
             base.HandleADMMessage(message, adm);
         }

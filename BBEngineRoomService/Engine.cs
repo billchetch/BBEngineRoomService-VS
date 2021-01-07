@@ -199,20 +199,20 @@ namespace BBEngineRoomService
                 {
                     case OilState.NO_PRESSURE:
                         let = EngineRoomServiceDB.LogEventType.WARNING;
-                        desc = String.Format("Engine {0} Oil sensor: {1}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, StateOfOil);
+                        desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
                         msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
                         break;
 
                     case OilState.SENSOR_FAULT:
                         let = EngineRoomServiceDB.LogEventType.WARNING;
-                        desc = String.Format("Engine {0} Oil sensor: {1}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, StateOfOil);
+                        desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
                         msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, desc);
                         break;
 
                     case OilState.OK_ENGINE_OFF:
                     case OilState.OK_ENGINE_ON:
                         let = EngineRoomServiceDB.LogEventType.INFO;
-                        desc = String.Format("Engine {0} Oil sensor: {1}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, StateOfOil);
+                        desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
                         msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
                         break;
                 }
