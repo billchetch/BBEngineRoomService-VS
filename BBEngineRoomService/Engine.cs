@@ -18,7 +18,7 @@ namespace BBEngineRoomService
         {
             public const String SENSOR_NAME = "OIL";
 
-            public OilSensorSwitch(int pinNumber, String id) : base(pinNumber, 250, id, SENSOR_NAME) { }
+            public OilSensorSwitch(int pinNumber, String id) : base(pinNumber, 500, id, SENSOR_NAME) { }
         } //end oil sensor
 
         public enum OilState
@@ -87,7 +87,6 @@ namespace BBEngineRoomService
         public Dictionary<RPMState, int> RPMThresholds { get; internal set; } = new Dictionary<RPMState, int>();
 
 
-
         public Engine(String id, RPMCounter rpm, OilSensorSwitch oilSensor, DS18B20Array.DS18B20Sensor tempSensor) : base(id, null)
         {
             RPM = rpm;
@@ -145,88 +144,83 @@ namespace BBEngineRoomService
             EngineRoomServiceDB.LogEventType let = EngineRoomServiceDB.LogEventType.INFO;
             String desc = null;
             Message msg = null;
+
             //see if engine is Running (and log)
             bool running = Running; // record to test change of state
             Running = RPM.AverageRPM > IS_RUNNING_RPM_THRESHOLD;
+            bool isEvent = running != Running;
 
-            if(running != Running) //log
+            //Running or not
+            if(isEvent) //log
             {
                 if (Running)
                 {
-                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.ON, ID, String.Format("RPM = {0}", RPM.RPM));
+                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.ON, ID, String.Format("Current RPM = {0}", RPM.RPM));
                     LastOn = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID).GetDateTime("created");
                 } else
                 {
-                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.OFF, ID, String.Format("RPM = {0}", RPM.RPM));
+                    desc = LastOn == default(DateTime) ? "N/A" : String.Format("Running for {0}", (DateTime.Now - LastOn).ToString("c"));
+                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.OFF, ID, desc);
                     LastOff = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID).GetDateTime("created");
                 }
             }
+
+            if (isEvent || !returnEventsOnly)
+            {
+                EngineRoomMessageSchema schema = new EngineRoomMessageSchema(new Message(MessageType.DATA));
+                schema.AddEngine(this);
+                messages.Add(schema.Message);
+            }
+
 
             //some useful durations...
             long secsSinceLastOn = LastOn == default(DateTime) ? -1 : (long)DateTime.Now.Subtract(LastOn).TotalSeconds;
             long secsSinceLastOff = LastOff == default(DateTime) ? -1 : (long)DateTime.Now.Subtract(LastOff).TotalSeconds;
 
             //Oil State
-            //Problems arise because of the dependence of the oil state upon the state of the Engine.Running property
-            //as well as the sensor state.  Both of these are independent to some degree so are not guaranteed to be in sync in a short time frame.
-            //Hence we ask for the current state and see if it matches the previous recorded state to ensure some stability
-            //Only if it is consistent over this period of time do we update the StateOfOil propery, log and produce messages/alerts
             OilState oilState = StateOfOil;
-            if (Running && secsSinceLastOn > 30)
+            if (Running && RPM.RPM > 0 && secsSinceLastOn > 30)
             {
                 oilState = OilSensor.IsOn ? OilState.NO_PRESSURE : OilState.OK_ENGINE_ON;
             }
-            else if (!Running && secsSinceLastOff > 30)
+            else if (!Running && RPM.RPM == 0 && secsSinceLastOff > 30)
             {
                 oilState = OilSensor.IsOff ? OilState.SENSOR_FAULT : OilState.OK_ENGINE_OFF;
             }
 
-            if(oilState == _prevOilState)
-            {
-                _oilStateStableCount = Math.Min(_oilStateStableCount + 1, 5);
-            } else
-            {
-                _oilStateStableCount = 0;
-            }
-            _prevOilState = oilState;
-
             msg = null;
-            if (_oilStateStableCount >= 5) //this condition is to ensure that the state is 'stable'
-            {  
-                bool isEvent = oilState != StateOfOil;
-                StateOfOil = oilState;
-                switch (StateOfOil)
-                {
-                    case OilState.NO_PRESSURE:
-                        let = EngineRoomServiceDB.LogEventType.WARNING;
-                        desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
-                        msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
-                        break;
+            isEvent = oilState != StateOfOil;
+            StateOfOil = oilState;
+            switch (StateOfOil)
+            {
+                case OilState.NO_PRESSURE:
+                    let = EngineRoomServiceDB.LogEventType.WARNING;
+                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
+                    break;
 
-                    case OilState.SENSOR_FAULT:
-                        let = EngineRoomServiceDB.LogEventType.WARNING;
-                        desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
-                        msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, desc);
-                        break;
+                case OilState.SENSOR_FAULT:
+                    let = EngineRoomServiceDB.LogEventType.WARNING;
+                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, desc);
+                    break;
 
-                    case OilState.OK_ENGINE_OFF:
-                    case OilState.OK_ENGINE_ON:
-                        let = EngineRoomServiceDB.LogEventType.INFO;
-                        desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
-                        msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
-                        break;
-                }
+                case OilState.OK_ENGINE_OFF:
+                case OilState.OK_ENGINE_ON:
+                    let = EngineRoomServiceDB.LogEventType.INFO;
+                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
+                    break;
+            }
 
-                if (msg != null && (isEvent || !returnEventsOnly))
-                {
-                    messages.Add(msg);
-                    if (returnEventsOnly) erdb.LogEvent(let, OilSensor.ID, desc);
-                }
+            if (msg != null && (isEvent || !returnEventsOnly))
+            {
+                messages.Add(msg);
+                if (isEvent) erdb.LogEvent(let, OilSensor.ID, desc);
             }
 
 
             //Temp state
-            msg = null;
             TemperatureState tempState = StateOfTemperature; //keep a record
             if (!Running || (TempSensor.AverageTemperature <= TemperatureThresholds[TemperatureState.OK]))
             {
@@ -240,6 +234,9 @@ namespace BBEngineRoomService
             {
                 StateOfTemperature = TemperatureState.TOO_HOT;
             }
+
+            msg = null;
+            isEvent = tempState != StateOfTemperature;
             switch (StateOfTemperature)
             {
                 case TemperatureState.TOO_HOT:
@@ -258,14 +255,13 @@ namespace BBEngineRoomService
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(TempSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
                     break;
             }
-            if (msg != null && (tempState != StateOfTemperature || !returnEventsOnly))
+            if (msg != null && (isEvent || !returnEventsOnly))
             {
                 messages.Add(msg);
-                if (returnEventsOnly) erdb.LogEvent(let, TempSensor.ID, desc);
+                if (isEvent) erdb.LogEvent(let, TempSensor.ID, desc);
             }
 
             //RPM state
-            msg = null;
             RPMState rpmState = StateOfRPM;
             if (!Running)
             {
@@ -288,6 +284,9 @@ namespace BBEngineRoomService
                     StateOfRPM = RPMState.TOO_FAST;
                 }
             }
+
+            msg = null;
+            isEvent = rpmState != StateOfRPM;
             switch (StateOfRPM)
             {
                 case RPMState.OFF:
@@ -310,10 +309,10 @@ namespace BBEngineRoomService
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(RPM.ID, BBAlarmsService.AlarmState.SEVERE, desc);
                     break;
             }
-            if (msg != null && (rpmState != StateOfRPM || !returnEventsOnly))
+            if (msg != null && (isEvent || !returnEventsOnly))
             {
                 messages.Add(msg);
-                if (returnEventsOnly) erdb.LogEvent(let, RPM.ID, desc);
+                if (isEvent) erdb.LogEvent(let, RPM.ID, desc);
             }
         }
 

@@ -372,10 +372,10 @@ namespace BBEngineRoomService
 
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
-                    _waterTanks.AddTank("wt1", 4, 5, 1200, 28, 110);
-                    _waterTanks.AddTank("wt2", 6, 7, 1100, 28, 105);
-                    _waterTanks.AddTank("wt3", 8, 9, 1100, 28, 105);
-                    _waterTanks.AddTank("wt4", 10, 11, 1100, 32, 105);
+                    _waterTanks.AddTank("wt1", 4, 5, 1200, 28, 105);
+                    _waterTanks.AddTank("wt2", 6, 7, 1100, 28, 100);
+                    _waterTanks.AddTank("wt3", 8, 9, 1100, 28, 100);
+                    _waterTanks.AddTank("wt4", 10, 11, 1100, 32, 100);
                     _waterTanks.Initialise(_erdb);
                     adm.AddDeviceGroup(_waterTanks);
                     break;
@@ -533,7 +533,7 @@ namespace BBEngineRoomService
         protected override void ConnectADM(String port, String nodeID = null)
         {
             base.ConnectADM(port, nodeID);
-            String msg = nodeID == null ? String.Format("ADMs on port {0} connected", port) : String.Format("ADM @ {0} connected", port + ":" + nodeID);
+            String msg = nodeID == null ? String.Format("{0} ADMs on port {1} connected", ADMS.Count, port) : String.Format("ADM @ {0} connected", port + ":" + nodeID);
             _erdb.LogEvent(EngineRoomServiceDB.LogEventType.CONNECT, "BBEngineRoom", msg);
         }
 
