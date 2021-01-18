@@ -48,7 +48,7 @@ namespace BBEngineRoomService
             bool enable = true;
             if (disabled != null)
             {
-                enable = enabled == null ? false : enabled.GetDateTime("created").Ticks > enabled.GetDateTime("created").Ticks;
+                enable = enabled == null ? false : enabled.GetDateTime("created").Ticks > disabled.GetDateTime("created").Ticks;
             }
             else if (enabled != null)
             {
@@ -91,7 +91,7 @@ namespace BBEngineRoomService
                 case PumpState.ON_TOO_LONG:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
                     desc = String.Format("Pump is: {0}", StateOfPump);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.SEVERE, desc);
+                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(ID, BBAlarmsService.AlarmState.CRITICAL, desc);
                     break;
 
                 case PumpState.ON:

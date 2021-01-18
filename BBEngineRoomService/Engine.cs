@@ -179,7 +179,7 @@ namespace BBEngineRoomService
 
             //Oil State
             OilState oilState = StateOfOil;
-            if (Running && RPM.RPM > 0 && secsSinceLastOn > 30)
+            if (Running && RPM.RPM > 100 && secsSinceLastOn > 30)
             {
                 oilState = OilSensor.IsOn ? OilState.NO_PRESSURE : OilState.OK_ENGINE_ON;
             }
@@ -191,24 +191,25 @@ namespace BBEngineRoomService
             msg = null;
             isEvent = oilState != StateOfOil;
             StateOfOil = oilState;
+            String rpmDesc = String.Format("RPM (instant/average) = {0}/{1}", RPM.RPM, RPM.AverageRPM);
             switch (StateOfOil)
             {
                 case OilState.NO_PRESSURE:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
+                    desc = String.Format("Engine {0} Oil sensor {1} gives {2} ... {3}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil, rpmDesc);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
                     break;
 
                 case OilState.SENSOR_FAULT:
                     let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
+                    desc = String.Format("Engine {0} Oil sensor {1} gives {2} ... {3}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil, rpmDesc);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, desc);
                     break;
 
                 case OilState.OK_ENGINE_OFF:
                 case OilState.OK_ENGINE_ON:
                     let = EngineRoomServiceDB.LogEventType.INFO;
-                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil);
+                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}... {3}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil, rpmDesc);
                     msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
                     break;
             }

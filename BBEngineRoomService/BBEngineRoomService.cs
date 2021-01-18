@@ -285,7 +285,7 @@ namespace BBEngineRoomService
 
                     //Pompa celup
                     _pompaCelup = new Pump(10, POMPA_CELUP_ID);
-                    _pompaCelup.MaxOnDuration = 15 * 60; //raise an alarm if on for more than 15 minutes
+                    _pompaCelup.MaxOnDuration = 12 * 60; //raise an alarm if on for more than 15 minutes
                     _pompaCelup.Initialise(_erdb);
                     _pompaCelup.SampleInterval = REQUEST_STATE_INTERVAL;
                     _pompaCelup.SampleSize = 1;
@@ -372,8 +372,8 @@ namespace BBEngineRoomService
 
                 case BOARD_ER3:
                     _waterTanks = new WaterTanks();
-                    _waterTanks.AddTank("wt1", 4, 5, 1200, 28, 105);
-                    _waterTanks.AddTank("wt2", 6, 7, 1100, 28, 100);
+                    _waterTanks.AddTank("wt1", 4, 5, 1200, 28, 102);
+                    _waterTanks.AddTank("wt2", 6, 7, 1100, 28, 110);
                     _waterTanks.AddTank("wt3", 8, 9, 1100, 28, 100);
                     _waterTanks.AddTank("wt4", 10, 11, 1100, 32, 100);
                     _waterTanks.Initialise(_erdb);
