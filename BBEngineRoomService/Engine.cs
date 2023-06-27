@@ -3,25 +3,51 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Chetch.Arduino.Devices.Counters;
-using Chetch.Arduino.Devices.Temperature;
-using Chetch.Arduino.Devices;
-using Chetch.Arduino;
+using Chetch.Arduino2.Devices;
+using Chetch.Arduino2.Devices.Temperature;
+using Chetch.Arduino2;
 using Chetch.Messaging;
 using Chetch.Database;
+using BBAlarmsService;
+using System.Reflection;
 
 namespace BBEngineRoomService
 {
-    public class Engine : ArduinoDeviceGroup, IMonitorable
+    public class Engine : ArduinoDeviceGroup, AlarmManager.IAlarmRaiser
     {
-        public class OilSensorSwitch : SwitchSensor
-        {
-            public const String SENSOR_NAME = "OIL";
 
-            public OilSensorSwitch(int pinNumber, String id) : base(pinNumber, 500, id, SENSOR_NAME) { }
+        public class RPMCounter : Counter
+        {
+            public RPMCounter(String id, byte pinNumber) : base(id, pinNumber, InterruptMode.RISING)
+            {
+                //Tolerance = 1000; //in micros .. means don't count fluctuations occuring in lntervals less than this
+            }
+
+            /*public int RPM
+            {
+                get
+                {
+                    return (int)Math.Round(IntervalsPerSecond * 60);
+                }
+            }*/
+
+            //for testing purposes (replace with above later)
+            private int _trpm = 0;
+
+            public int RPM { get { return _trpm; }
+                set {
+                    _trpm = value;
+                    
+                } } 
+        }
+
+        public class OilSensorSwitch : SwitchDevice
+        {
+            public OilSensorSwitch(String id, byte pinNumber) : base(id, SwitchMode.PASSIVE, pinNumber, SwitchPosition.ON, 100) { }
         } //end oil sensor
 
-        public enum OilState
+        
+        public enum OilPressureState
         {
             OK_ENGINE_ON,
             OK_ENGINE_OFF,
@@ -46,15 +72,17 @@ namespace BBEngineRoomService
         }
 
         public const int IS_RUNNING_RPM_THRESHOLD = 250;
+        public const int RUNNING_FOR_THRESHOLD = 5; //in seconds
+        public const int STOPPED_RUNNING_FOR_THRESHOLD = 5; //in seconds
+
+        public AlarmManager AlarmManager { get; set; }
 
         private bool _running = false;
         public bool Running
         {
-            get { return Enabled ? _running : false; }
+            get { return _running; }
             set
             {
-                if (!Enabled) return;
-
                 if (_running != value)
                 {
                     _running = value;
@@ -66,273 +94,193 @@ namespace BBEngineRoomService
                     {
                         LastOff = DateTime.Now;
                     }
+
+                    //wait a certain time and check oil pressure
+                    int delay = ((_running ? RUNNING_FOR_THRESHOLD : STOPPED_RUNNING_FOR_THRESHOLD) * 1000) + 500;
+                    Task.Delay(delay).ContinueWith(_ =>
+                    {
+                        checkOilPressure(); //this is a delayed method see method body
+                    });
                 }
             }
         }
-        public RPMCounter RPM { get; internal set; }
-        public OilSensorSwitch OilSensor { get; internal set; }
-        public DS18B20Array.DS18B20Sensor TempSensor { get; internal set; }
-        public DateTime LastOn { get; set; }
-        public DateTime LastOff { get; set; }
 
-        //states
-        public OilState StateOfOil { get; internal set; } = OilState.OK_ENGINE_OFF;
-        private int _oilStateStableCount = 0;
-        private OilState _prevOilState = OilState.OK_ENGINE_OFF;
+        public bool IsRunning => Running;
 
-        public TemperatureState StateOfTemperature { get; internal set; } = TemperatureState.OK;
-        public Dictionary<TemperatureState, int> TemperatureThresholds { get; internal set; } = new Dictionary<TemperatureState, int>();
+        private RPMState _rpm = RPMState.OFF;
 
-        public RPMState StateOfRPM { get; internal set; } = RPMState.OFF;
-        public Dictionary<RPMState, int> RPMThresholds { get; internal set; } = new Dictionary<RPMState, int>();
-
-
-        public Engine(String id, RPMCounter rpm, OilSensorSwitch oilSensor, DS18B20Array.DS18B20Sensor tempSensor) : base(id, null)
+        public RPMState RPM
         {
-            RPM = rpm;
-            OilSensor = oilSensor;
-            TempSensor = tempSensor;
-            AddDevice(RPM);
-            AddDevice(OilSensor);
-
-            SetTempertureThresholds(50, 65);
-            SetRPMThresholds(500, 1650, 1800);
-        }
-
-        public void SetTempertureThresholds(int thresholdOk, int thresholdHot)
-        {
-            TemperatureThresholds[TemperatureState.OK] = thresholdOk;
-            TemperatureThresholds[TemperatureState.HOT] = thresholdHot; 
-        }
-
-        public void SetRPMThresholds(int thresholdSlow, int thresholdNormal, int thresholdFast)
-        {
-            RPMThresholds[RPMState.SLOW] = thresholdSlow;
-            RPMThresholds[RPMState.NORMAL] = thresholdNormal;
-            RPMThresholds[RPMState.FAST] = thresholdFast;
-        }
-
-        public void Initialise(EngineRoomServiceDB erdb)
-        {
-            DBRow row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID); 
-            if (row != null) LastOn = row.GetDateTime("created");
-            row = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID);
-            if (row != null) LastOff = row.GetDateTime("created");
-
-            DBRow enabled = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ENABLE, ID);
-            DBRow disabled = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.DISABLE, ID);
-
-            bool enable = true;
-            if (disabled != null)
+            get { return _rpm;  }
+            set
             {
-                enable = enabled == null ? false : enabled.GetDateTime("created").Ticks > disabled.GetDateTime("created").Ticks;
-            }
-            else if (enabled != null)
-            {
-                enable = true;
-            }
-            Enable(enable);
-
-            String desc = String.Format("Initialised engine {0} ... engine is {1}", ID, Enabled ? "enabled" : "disabled");
-            erdb.LogEvent(EngineRoomServiceDB.LogEventType.INITIALISE, ID, desc);
-        }
-
-        public void Monitor(EngineRoomServiceDB erdb, List<Message> messages, bool returnEventsOnly)
-        {
-            if (!Enabled) return;
-
-            EngineRoomServiceDB.LogEventType let = EngineRoomServiceDB.LogEventType.INFO;
-            String desc = null;
-            Message msg = null;
-
-            //see if engine is Running (and log)
-            bool running = Running; // record to test change of state
-            Running = RPM.AverageRPM > IS_RUNNING_RPM_THRESHOLD;
-            bool isEvent = running != Running;
-
-            //Running or not
-            if(isEvent) //log
-            {
-                if (Running)
+                _rpm = value;
+                String alarmID = RPMSensor.ID;
+                switch (_rpm)
                 {
-                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.ON, ID, String.Format("Current RPM = {0}", RPM.RPM));
-                    LastOn = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.ON, ID).GetDateTime("created");
+                    case RPMState.TOO_FAST:
+                        AlarmManager?.Raise(alarmID, AlarmState.SEVERE, "Engine is running too fast");
+                        break;
+                    case RPMState.SLOW:
+                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "Engine is running slow");
+                        break;
+                    default:
+                        AlarmManager?.Lower(alarmID, "Engine is running at an acceptable RPM");
+                        break;
+                }
+            }
+        }
+
+        private OilPressureState _oilPressure = OilPressureState.OK_ENGINE_OFF;
+        public OilPressureState OilPressure
+        {
+            get { return _oilPressure; }
+            set 
+            { 
+                _oilPressure = value;
+                String alarmID = OilSensor.ID;
+                switch (_oilPressure)
+                {
+                    case OilPressureState.OK_ENGINE_OFF:
+                    case OilPressureState.OK_ENGINE_ON:
+                        AlarmManager?.Lower(alarmID, "balik ke normal dong");
+                        break;
+                    case OilPressureState.NO_PRESSURE:
+                        AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, "Parah ini");
+                        break;
+                    case OilPressureState.SENSOR_FAULT:
+                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "kok sensor fautlnya");
+                        break;
+                }
+            }
+        }
+
+        public RPMCounter RPMSensor { get; internal set; }
+
+        public OilSensorSwitch OilSensor { get; internal set; }
+
+        //public DS18B20Array.DS18B20Sensor TempSensor { get; internal set; }
+
+        public DateTime LastOn { get; set; }
+        public DateTime LastOff { get; set; } 
+
+        public int RunningFor
+        {
+            get
+            {
+                return IsRunning ? (int)(DateTime.Now - LastOn).TotalSeconds : 0;
+            }
+        }
+
+        public int StoppedRunningFor
+        {
+            get
+            {
+                if (IsRunning)
+                {
+                    return 0;
                 } else
                 {
-                    desc = LastOn == default(DateTime) ? "N/A" : String.Format("Running for {0}", (DateTime.Now - LastOn).ToString("c"));
-                    erdb.LogEvent(EngineRoomServiceDB.LogEventType.OFF, ID, desc);
-                    LastOff = erdb.GetLatestEvent(EngineRoomServiceDB.LogEventType.OFF, ID).GetDateTime("created");
+                    return LastOff == default(DateTime) ? STOPPED_RUNNING_FOR_THRESHOLD : (int)(DateTime.Now - LastOff).TotalSeconds;
                 }
-            }
-
-            if (isEvent || !returnEventsOnly)
-            {
-                EngineRoomMessageSchema schema = new EngineRoomMessageSchema(new Message(MessageType.DATA));
-                schema.AddEngine(this);
-                messages.Add(schema.Message);
-            }
-
-
-            //some useful durations...
-            long secsSinceLastOn = LastOn == default(DateTime) ? -1 : (long)DateTime.Now.Subtract(LastOn).TotalSeconds;
-            long secsSinceLastOff = LastOff == default(DateTime) ? -1 : (long)DateTime.Now.Subtract(LastOff).TotalSeconds;
-
-            //Oil State
-            OilState oilState = StateOfOil;
-            if (Running && RPM.RPM > 100 && secsSinceLastOn > 30)
-            {
-                oilState = OilSensor.IsOn ? OilState.NO_PRESSURE : OilState.OK_ENGINE_ON;
-            }
-            else if (!Running && RPM.RPM == 0 && secsSinceLastOff > 30)
-            {
-                oilState = OilSensor.IsOff ? OilState.SENSOR_FAULT : OilState.OK_ENGINE_OFF;
-            }
-
-            msg = null;
-            isEvent = oilState != StateOfOil;
-            StateOfOil = oilState;
-            String rpmDesc = String.Format("RPM (instant/average) = {0}/{1}", RPM.RPM, RPM.AverageRPM);
-            switch (StateOfOil)
-            {
-                case OilState.NO_PRESSURE:
-                    let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Engine {0} Oil sensor {1} gives {2} ... {3}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil, rpmDesc);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
-                    break;
-
-                case OilState.SENSOR_FAULT:
-                    let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Engine {0} Oil sensor {1} gives {2} ... {3}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil, rpmDesc);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.MODERATE, desc);
-                    break;
-
-                case OilState.OK_ENGINE_OFF:
-                case OilState.OK_ENGINE_ON:
-                    let = EngineRoomServiceDB.LogEventType.INFO;
-                    desc = String.Format("Engine {0} Oil sensor {1} gives {2}... {3}", Running ? "running for " + secsSinceLastOn : "off for " + secsSinceLastOff, OilSensor.State, StateOfOil, rpmDesc);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(OilSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
-                    break;
-            }
-
-            if (msg != null && (isEvent || !returnEventsOnly))
-            {
-                messages.Add(msg);
-                if (isEvent) erdb.LogEvent(let, OilSensor.ID, desc);
-            }
-
-
-            //Temp state
-            TemperatureState tempState = StateOfTemperature; //keep a record
-            if (!Running || (TempSensor.AverageTemperature <= TemperatureThresholds[TemperatureState.OK]))
-            {
-                StateOfTemperature = TemperatureState.OK;
-            }
-            else if (TempSensor.AverageTemperature <= TemperatureThresholds[TemperatureState.HOT])
-            {
-                StateOfTemperature = TemperatureState.HOT;
-            }
-            else
-            {
-                StateOfTemperature = TemperatureState.TOO_HOT;
-            }
-
-            msg = null;
-            isEvent = tempState != StateOfTemperature;
-            switch (StateOfTemperature)
-            {
-                case TemperatureState.TOO_HOT:
-                    let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Temp sensor: {0} {1}", TempSensor.AverageTemperature, StateOfTemperature);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(TempSensor.ID, BBAlarmsService.AlarmState.CRITICAL, desc);
-                    break;
-                case TemperatureState.HOT:
-                    let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("Temp sensor: {0} {1}", TempSensor.AverageTemperature, StateOfTemperature);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(TempSensor.ID, BBAlarmsService.AlarmState.SEVERE, desc);
-                    break;
-                case TemperatureState.OK:
-                    let = EngineRoomServiceDB.LogEventType.INFO;
-                    desc = String.Format("Temp sensor: {0} {1}", TempSensor.AverageTemperature, StateOfTemperature);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(TempSensor.ID, BBAlarmsService.AlarmState.OFF, desc);
-                    break;
-            }
-            if (msg != null && (isEvent || !returnEventsOnly))
-            {
-                messages.Add(msg);
-                if (isEvent) erdb.LogEvent(let, TempSensor.ID, desc);
-            }
-
-            //RPM state
-            RPMState rpmState = StateOfRPM;
-            if (!Running)
-            {
-                StateOfRPM = RPMState.OFF;
-            } else if (secsSinceLastOn > 10) {
-                if (RPM.AverageRPM < RPMThresholds[RPMState.SLOW])
-                {
-                    StateOfRPM = RPMState.SLOW;
-                }
-                else if (RPM.AverageRPM < RPMThresholds[RPMState.NORMAL])
-                {
-                    StateOfRPM = RPMState.NORMAL;
-                }
-                else if (RPM.AverageRPM < RPMThresholds[RPMState.FAST])
-                {
-                    StateOfRPM = RPMState.FAST;
-                }
-                else
-                {
-                    StateOfRPM = RPMState.TOO_FAST;
-                }
-            }
-
-            msg = null;
-            isEvent = rpmState != StateOfRPM;
-            switch (StateOfRPM)
-            {
-                case RPMState.OFF:
-                case RPMState.SLOW:
-                case RPMState.NORMAL:
-                    let = EngineRoomServiceDB.LogEventType.INFO;
-                    desc = String.Format("RPM (Instant/Average): {0}/{1} gives state {2}", RPM.RPM, RPM.AverageRPM, StateOfRPM);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(RPM.ID, BBAlarmsService.AlarmState.OFF, desc);
-                    break;
-
-                case RPMState.FAST:
-                    let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("RPM (Instant/Average): {0}/{1} gives state {2}", RPM.RPM, RPM.AverageRPM, StateOfRPM);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(RPM.ID, BBAlarmsService.AlarmState.MODERATE, desc);
-                    break;
-
-                case RPMState.TOO_FAST:
-                    let = EngineRoomServiceDB.LogEventType.WARNING;
-                    desc = String.Format("RPM (Instant/Average): {0}/{1} gives state {2}", RPM.RPM, RPM.AverageRPM, StateOfRPM);
-                    msg = BBAlarmsService.AlarmsMessageSchema.AlertAlarmStateChange(RPM.ID, BBAlarmsService.AlarmState.SEVERE, desc);
-                    break;
-            }
-            if (msg != null && (isEvent || !returnEventsOnly))
-            {
-                messages.Add(msg);
-                if (isEvent) erdb.LogEvent(let, RPM.ID, desc);
             }
         }
 
-        public void LogState(EngineRoomServiceDB erdb)
+        public Engine(String id, byte rpmPin, byte oilSensorPin, byte tempSensorPin) : base(id, null)
         {
-            if (!Enabled) return;
 
-            erdb.LogState(ID, "Running", Running);
-            if (RPM != null)
+            RPMSensor = new RPMCounter(CreateDeviceID("rpm"), rpmPin);
+            RPMSensor.ReportInterval = 2000;
+            RPMSensor.Tolerance = 0;
+            RPMSensor.DataReceived += (Object sender, MessageReceivedArgs ea) =>
             {
-                erdb.LogState(ID, "RPM", RPM.RPM);
-                erdb.LogState(ID, "RPM Average", RPM.AverageRPM);
-            }
-            if (OilSensor != null) erdb.LogState(ID, "OilSensor", OilSensor.State);
-            if (TempSensor != null)
+                monitorRPM();
+            };
+
+            OilSensor = new OilSensorSwitch(CreateDeviceID("oil"), oilSensorPin);
+            OilSensor.Tolerance = 100; //designed to prevent bounce
+            OilSensor.Switched += (Object sender, SwitchDevice.SwitchPosition pos) =>
             {
-                erdb.LogState(ID, "Temperature", TempSensor.Temperature);
-                erdb.LogState(ID, "Temperature Average", TempSensor.AverageTemperature);
+                checkOilPressure();
+            };
+
+            AddDevice(RPMSensor);
+            AddDevice(OilSensor);
+        }
+
+
+        //TODO: change to private
+        public void monitorRPM()
+        {
+            Running = RPMSensor.RPM >= IS_RUNNING_RPM_THRESHOLD;
+            if (Running)
+            {
+                if (RunningFor >= RUNNING_FOR_THRESHOLD)
+                {
+                    if(RPMSensor.RPM > 2500)
+                    {
+                        RPM = RPMState.TOO_FAST;
+                    }
+                    else if(RPMSensor.RPM > 2000)
+                    {
+                        RPM = RPMState.FAST;
+                    } 
+                    else if(RPMSensor.RPM > 1000)
+                    {
+                        RPM = RPMState.NORMAL;
+                    }
+                    else
+                    {
+                        RPM = RPMState.SLOW;
+                    }
+                }
+            } else
+            {
+                RPM = RPMState.OFF;
             }
+        }
+
+
+        //TODO: change to private
+        public void checkOilPressure()
+        {
+
+            if(IsRunning && OilSensor.IsOff) //if running for however long and oil sensor is off then that's correct
+            {
+                OilPressure = OilPressureState.OK_ENGINE_ON;
+            } 
+            else if(RunningFor >= RUNNING_FOR_THRESHOLD && OilSensor.IsOn) //if running for a while and oll esnsor is on whoa danger
+            {
+                OilPressure = OilPressureState.NO_PRESSURE;
+            }
+            else if (!IsRunning && StoppedRunningFor >= STOPPED_RUNNING_FOR_THRESHOLD)
+            {
+                if (OilSensor.IsOn) //if stopped for a while and oil sensor is on then correct
+                {
+                    OilPressure = OilPressureState.OK_ENGINE_OFF;
+                }
+                else //but if the oil sensor is off then this suggests a sensor fault
+                {
+                    OilPressure = OilPressureState.SENSOR_FAULT;
+                }
+            }
+        }
+
+        protected override void HandleDevicePropertyChange(ArduinoDevice device, PropertyInfo property)
+        {
+            //throw new NotImplementedException();
+        }
+
+        public void RegisterAlarms()
+        {
+            AlarmManager.RegisterAlarm(this, RPMSensor.ID);
+            AlarmManager.RegisterAlarm(this, OilSensor.ID);
+            //AlarmManager.RegisterAlarm(this, ID + "_tmp");
+        }
+
+        public void RequestUpdateAlarms()
+        {
+            OilSensor.RequestStatus();
         }
     }
 }

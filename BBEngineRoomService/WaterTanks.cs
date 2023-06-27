@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Chetch.Arduino;
-using Chetch.Arduino.Devices.RangeFinders;
+using Chetch.Arduino2;
 using Chetch.Messaging;
 using Chetch.Database;
 
 namespace BBEngineRoomService
 {
-    public class WaterTanks : Chetch.Arduino.DeviceGroups.FluidTanks, IMonitorable
+    /*
+    public class WaterTanks : Chetch.Arduino2.DeviceGroups.FluidTanks, IMonitorable
     {
         
         private DateTime _initialisedAt;
@@ -94,4 +94,6 @@ namespace BBEngineRoomService
             erdb.LogState(ID, "Percent Full", PercentFull, desc);
         }
     }
+    */
 }
+

@@ -14,11 +14,11 @@
     <Setting Name="EngineRoomDBName" Type="System.String" Scope="Application">
       <Value Profile="(Default)">engine_room</Value>
     </Setting>
-    <Setting Name="AllowedPorts" Type="System.String" Scope="Application">
+    <Setting Name="CMCAuthToken" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="RequiredBoards" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">ER1</Value>
+    <Setting Name="NetworkServiceURL" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">http://192.168.4.188:8001/api/services</Value>
     </Setting>
   </Settings>
 </SettingsFile>

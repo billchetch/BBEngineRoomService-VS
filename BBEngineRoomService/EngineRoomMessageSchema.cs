@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Chetch.Arduino;
+using Chetch.Arduino2;
 using Chetch.Messaging;
-using Chetch.Arduino.Devices;
-using Chetch.Arduino.Devices.Counters;
-using Chetch.Arduino.Devices.Temperature;
+using Chetch.Arduino2.Devices;
+using Chetch.Arduino2.Devices.Temperature;
 
 
 namespace BBEngineRoomService
@@ -28,7 +27,7 @@ namespace BBEngineRoomService
 
         public EngineRoomMessageSchema(Message message) : base(message) { }
 
-        public void AddPump(Pump pump)
+        /*public void AddPump(Pump pump)
         {
             Message.AddValue(ADMService.MessageSchema.DEVICE_ID, pump.ID);
             Message.AddValue(ADMService.MessageSchema.DEVICE_NAME, pump.Name);
@@ -110,6 +109,6 @@ namespace BBEngineRoomService
             Message.AddValue("Remaining", waterTanks.Remaining);
             Message.AddValue("Level", waterTanks.Level);
             Message.AddValue("Enabled", waterTanks.Enabled);
-        }
+        }*/
     } //end MessageSchema class
 }
