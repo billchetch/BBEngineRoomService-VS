@@ -134,17 +134,6 @@ namespace BBEngineRoomService
 
         override public void Test(String[] args = null)
         {
-            Console.WriteLine("Setting RPM to 2000 and waiting for threhsold then mointoring RPM...");
-            _testEngine.RPMSensor.RPM = 2000;
-            System.Threading.Thread.Sleep(Engine.RUNNING_FOR_THRESHOLD*1000 + 500);
-            _testEngine.monitorRPM();
-
-            Console.WriteLine("Wait for a while...");
-            System.Threading.Thread.Sleep(3000);
-
-            Console.WriteLine("Now set RPM to 0...");
-            _testEngine.RPMSensor.RPM = 0;
-
             /*Console.WriteLine("Setting RPM to 3000 and waiting...");
             _testEngine.RPMSensor.RPM = 3000;
             _testEngine.monitorRPM();
@@ -172,34 +161,27 @@ namespace BBEngineRoomService
                 String gensetsServiceName = "";
 
                 _enginesADM = ArduinoDeviceManager.Create(enginesServiceName, networkServiceURL, 256, 256);
-                //_gensetsADM = ArduinoDeviceManager.Create(gensetsServiceName, networkServiceURL, 256, 256);
+                //_enginesADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_ARDUINO, 115200, 64, 64);
+                _testEngine = new Engine("gs1", 19, 5, 9);
+                //_testEngine2 = new Engine("gs2", 18, 6, 10);
 
-                _testEngine = new Engine("gs1", 18, 4, 12);
 
-                _testEngine.RPMSensor.ReportInterval = 2000;
-                _testEngine.RPMSensor.DataReceived += (Object sender, Chetch.Arduino2.ArduinoObject.MessageReceivedArgs ea) =>
-                {
-                    var r = (Engine.RPMCounter)sender;
-                    //Console.WriteLine(" >>>>>>>>>>>>>>>>> {0}  count {1},  intervals per sec {2}, count per sec {3}, rpm {4}", r.UID, r.Count, r.IntervalsPerSecond, r.CountPerSecond, r.RPM);
-                };
-                
-
-                _ticker = new Ticker("tk1", 6, 20);
+                _ticker = new Ticker("tk1", 5, 800, 200);
                 _ticker.ReportInterval = 1000;
                 _ticker.DataReceived += (Object sender, Chetch.Arduino2.ArduinoObject.MessageReceivedArgs ea) =>
                 {
                     var tk = (Ticker)sender;
-                    //Console.WriteLine(" >>>>>>>>>>>>>>>>> {0} tick count {1}", tk.UID, tk.TickCount);
+                    Console.WriteLine(" >>>>>>>>>>>>>>>>> {0} tick count {1}", tk.UID, tk.TickCount);
                 };
-
                 
-                //_testBandwidth.ReportInterval = 1000;
+                
+                
 
                 _enginesADM.AddDeviceGroup(_testEngine);
                 //_enginesADM.AddDevice(oilSensor);
                 //_enginesADM.AddDevice(_testSwitch);
                 //_enginesADM.AddDevice(_testBandwidth);
-                _enginesADM.AddDevice(_ticker);
+                //_enginesADM.AddDevice(_ticker);
                 
 
 
@@ -237,26 +219,6 @@ namespace BBEngineRoomService
         protected override void HandleAOPropertyChange(object sender, PropertyChangedEventArgs eargs)
         {
             base.HandleAOPropertyChange(sender, eargs);
-
-            if(sender is Engine.OilSensorSwitch)
-            {
-                Console.WriteLine("Hey oil sensor found");
-            }
-            if(sender is Engine.RPMCounter)
-            {
-                var rpm = ((Engine.RPMCounter)sender);
-                //Console.WriteLine("RPM count {0} cps {1} rpm {2}", rpm.Count, rpm.CountPerSecond, rpm.RPM);
-            }
-            if(sender is TestDevice01)
-            {
-                var td = (TestDevice01)sender;
-                Console.WriteLine("TestDevice returns {0}", td.TestValue);
-            }
-            if (sender is TestBandwidth)
-            {
-                var bw = (TestBandwidth)sender;
-                //Console.WriteLine("Test bandwidth returns...{0} / {1} messages received / sent", bw.MessagesReceived, bw.MessagesSent);
-            }
         }
 
         public Pump GetPump(String pumpID)
@@ -294,23 +256,23 @@ namespace BBEngineRoomService
 
         override public bool HandleCommand(Connection cnn, Message message, String cmd, List<Object> args, Message response)
         {
+            String alarmID;
             switch (cmd)
             {
-                case BBAlarmsService.AlarmsMessageSchema.COMMAND_ALARM_STATUS:
-                    if(args.Count == 0)
+                case AlarmsMessageSchema.COMMAND_ALARM_STATUS:
+                    _alarmManager.NotifyAlarmsService(this);
+                    return false; //no need to send a response (save on bandwidth)
+
+                case AlarmsMessageSchema.COMMAND_TEST_ALARM:
+                    if (args.Count == 0)
                     {
                         throw new Exception("Please pecify an alarm ID");
                     }
-                    var alarmID = args[0].ToString();
-                    Tracing?.TraceEvent(TraceEventType.Information, 1000, "Requesting update alarm {0}", alarmID);
-                    try
-                    {
-                        _alarmManager.RequestUpdateAlarms(alarmID);
-                    } catch (Exception e)
-                    {
-                        Tracing?.TraceEvent(TraceEventType.Error, 1000, "Requesting update alarm {0} error: {1}", alarmID, e.Message);
-                    }
-                    return false; //no need to send a response (save on bandwidth)
+                    alarmID = args[0].ToString();
+
+                    _alarmManager.StartTest(alarmID, AlarmState.MODERATE, "Raising the alarm as a test baby for a short time...");
+                    
+                    return true;
 
                 default:
                     return base.HandleCommand(cnn, message, cmd, args, response);
