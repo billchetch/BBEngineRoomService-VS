@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Chetch.Arduino2.Devices;
 using Chetch.Arduino2.Devices.Temperature;
 using Chetch.Arduino2;
+using Chetch.Utilities;
 using Chetch.Arduino2.Devices.Temperature;
 using Chetch.Messaging;
 using Chetch.Database;
@@ -21,17 +22,14 @@ namespace BBEngineRoomService
         {
             public double ConversionFactor { get; set; }  = 1.0;
 
-            public RPMCounter(String id, byte pinNumber, InterruptMode mode) : base(id, pinNumber, mode)
-            {
-                //Tolerance = 1000; //in micros .. means don't count fluctuations occuring in lntervals less than this
-            }
+            public RPMCounter(String id, byte pinNumber, InterruptMode mode) : base(id, pinNumber, mode){}
 
             public int RPM
             {
                 get
                 {
                     double r = IntervalsPerSecond * 60.0;
-                    return (int)Math.Round(r * ConversionFactor);
+                    return (int)System.Math.Round(r * ConversionFactor);
                 }
             }
 
@@ -53,6 +51,7 @@ namespace BBEngineRoomService
 
         } //end oil sensor
 
+        
         public enum EngineRPMState
         {
             OFF = 0,
@@ -62,6 +61,7 @@ namespace BBEngineRoomService
             TOO_FAST = 2500,
         }
 
+        
         //enums for states
         public enum OilPressureState
         {
@@ -78,10 +78,14 @@ namespace BBEngineRoomService
             TOO_HOT = 33,
         }
 
+
         //Constants
         public const int IS_RUNNING_RPM_THRESHOLD = 250;
-        public const int RUNNING_FOR_THRESHOLD = 5; //in seconds
-        public const int STOPPED_RUNNING_FOR_THRESHOLD = 5; //in seconds
+        public const int CHECK_OIL_IF_RUNNING = 5; //in seconds
+        public const int CHECK_OIL_IF_STOPPED_RUNNING = 5; //in seconds
+
+        public EventHandler<double> EngineStarted;
+        public EventHandler<double> EngineStopped;
 
         //Alarm manager
         public AlarmManager AlarmManager { get; set; }
@@ -89,9 +93,13 @@ namespace BBEngineRoomService
         //Engine Components
         public RPMCounter RPMSensor { get; internal set; }
 
+        public ThresholdMap<EngineRPMState, int> RPMThreholds = new ThresholdMap<EngineRPMState, int>();
+
         public OilSensorSwitch OilSensor { get; internal set; }
 
         public TemperatureSensor TempSensor { get; internal set; }
+        
+        public ThresholdMap<TemperatureState, double> TempThresholds = new ThresholdMap<TemperatureState, double>();
 
 
         //Engine Properties
@@ -106,21 +114,11 @@ namespace BBEngineRoomService
                     _running = value;
                     if (_running)
                     {
-                        LastOn = DateTime.Now;
+                        onEngineStarted();
                     }
                     else
                     {
-                        LastOff = DateTime.Now;
-                    }
-
-                    //wait a certain time and check oil pressure
-                    if (OilSensor.IsReady)
-                    {
-                        int delay = ((_running ? RUNNING_FOR_THRESHOLD : STOPPED_RUNNING_FOR_THRESHOLD) * 1000) + 500;
-                        Task.Delay(delay).ContinueWith(_ =>
-                        {
-                            checkOilPressure(); //this is a delayed method see method body
-                        });
+                        onEngineStopped();
                     }
                 } //end check value change
             } //end get
@@ -189,17 +187,21 @@ namespace BBEngineRoomService
             {
                 _tempState = value;
                 String alarmID = TempSensor.ID;
-                switch (_tempState)
+                if (Running)
                 {
-                    case TemperatureState.TOO_HOT:
-                        AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, String.Format("Engine {0} is running too hot @ {1}", UID, Temp));
-                        break;
-                    case TemperatureState.HOT:
-                        AlarmManager?.Raise(alarmID, AlarmState.SEVERE, String.Format("Engine {0} is running hot @ {1}", UID, Temp));
-                        break;
-                    default:
-                        AlarmManager?.Lower(alarmID,String.Format("Engine {0} returned to acceptable temperature of {1}", UID, Temp));
-                        break;
+                    switch (_tempState)
+                    {
+                        case TemperatureState.TOO_HOT:
+                            AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, String.Format("Engine {0} is running too hot @ {1}", UID, Temp));
+                            break;
+                        case TemperatureState.HOT:
+                            AlarmManager?.Raise(alarmID, AlarmState.SEVERE, String.Format("Engine {0} is running hot @ {1}", UID, Temp));
+                            break;
+                    }
+                } 
+                else
+                {
+                    AlarmManager?.Lower(alarmID, String.Format("Engine {0} returned to acceptable temperature of {1}", UID, Temp));
                 }
             }
         }
@@ -223,7 +225,7 @@ namespace BBEngineRoomService
                     return 0;
                 } else
                 {
-                    return LastOff == default(DateTime) ? STOPPED_RUNNING_FOR_THRESHOLD : (int)(DateTime.Now - LastOff).TotalSeconds;
+                    return (int)(DateTime.Now - LastOff).TotalSeconds;
                 }
             }
         }
@@ -242,6 +244,7 @@ namespace BBEngineRoomService
             {
                 monitorRPM();
             };
+            
 
             OilSensor = new OilSensorSwitch(CreateDeviceID("oil"), oilSensorPin);
             OilSensor.Tolerance = 100; //designed to prevent bounce
@@ -262,16 +265,38 @@ namespace BBEngineRoomService
             AddDevice(TempSensor);
         }
 
+
+        private void onEngineStarted()
+        {
+            LastOn = DateTime.Now;
+            EngineStarted?.Invoke(this, RPM);
+            Task.Delay((CHECK_OIL_IF_RUNNING * 1000) + 500).ContinueWith(_ =>
+            {
+                checkOilPressure(); //this is a delayed method see method body
+            });
+        }
+
+        private void onEngineStopped()
+        {
+            LastOff = DateTime.Now;
+            EngineStopped?.Invoke(this, RPM);
+            Task.Delay((CHECK_OIL_IF_STOPPED_RUNNING * 1000) + 500).ContinueWith(_ =>
+            {
+                checkOilPressure(); //this is a delayed method see method body
+            });
+        }
+
         //TODO: change to private
-        public void monitorRPM()
+        private void monitorRPM()
         {
             Console.WriteLine("RPM: {0} Count: {1} CountPerSecond: {2}, CountDuration: {3}, IntervalDuration: {4}, State: {5}", 
-                (int)Math.Round(RPMSensor.IntervalsPerSecond * 60), 
+                (int)System.Math.Round(RPMSensor.IntervalsPerSecond * 60), 
                 RPMSensor.Count,
                 RPMSensor.CountPerSecond,
                 RPMSensor.CountDuration,
                 RPMSensor.IntervalDuration,
                 RPMState);
+
 
             //assign the sensor value to the engine property
             RPM = RPMSensor.RPM;
@@ -282,25 +307,7 @@ namespace BBEngineRoomService
             //Now update the RPM State
             if (Running)
             {
-                if (RunningFor >= RUNNING_FOR_THRESHOLD)
-                {
-                    if(RPM > (int)EngineRPMState.TOO_FAST)
-                    {
-                        RPMState = EngineRPMState.TOO_FAST;
-                    }
-                    else if(RPM > (int)EngineRPMState.FAST)
-                    {
-                        RPMState = EngineRPMState.FAST;
-                    } 
-                    else if(RPM > (int)EngineRPMState.NORMAL)
-                    {
-                        RPMState = EngineRPMState.NORMAL;
-                    }
-                    else
-                    {
-                        RPMState = EngineRPMState.SLOW;
-                    }
-                }
+                RPMState = RPMThreholds.GetValue(RPM);
             } 
             else
             {
@@ -310,17 +317,19 @@ namespace BBEngineRoomService
 
 
         //TODO: change to private
-        public void checkOilPressure()
+        private void checkOilPressure()
         {
-            if(IsRunning && OilSensor.DetectedPressure) //if running for however long and oil sensor is off then that's correct
+            Console.WriteLine("Oli: {0}", OilSensor.DetectedPressure ? "pressure" : "no pressure");
+
+            if (IsRunning && OilSensor.DetectedPressure) //if running for however long and oil sensor is off then that's correct
             {
                 OilPressure = OilPressureState.OK_ENGINE_ON;
             } 
-            else if(RunningFor >= RUNNING_FOR_THRESHOLD && !OilSensor.DetectedPressure) //if running for a while and oll esnsor is on whoa danger
+            else if(RunningFor >= CHECK_OIL_IF_RUNNING && !OilSensor.DetectedPressure) //if running for a while and oll esnsor is on whoa danger
             {
                 OilPressure = OilPressureState.NO_PRESSURE;
             }
-            else if (!IsRunning && StoppedRunningFor >= STOPPED_RUNNING_FOR_THRESHOLD)
+            else if (!IsRunning && StoppedRunningFor >= CHECK_OIL_IF_STOPPED_RUNNING)
             {
                 if (!OilSensor.DetectedPressure) //if stopped for a while and oil sensor is on then correct
                 {
@@ -334,22 +343,11 @@ namespace BBEngineRoomService
         }
 
         //TODO: change to private
-        public void monitorTemperature()
+        private void monitorTemperature()
         {
             Console.WriteLine("Temp: {0}", TempSensor.Temperature);
             Temp = TempSensor.Temperature;
-            if (Temp > (int)TemperatureState.TOO_HOT)
-            {
-                TempState = TemperatureState.TOO_HOT;
-            }
-            else if(Temp > (int)TemperatureState.HOT)
-            {
-                TempState = TemperatureState.HOT;
-            }
-            else
-            {
-                TempState = TemperatureState.OK;
-            }
+            TempState = TempThresholds.GetValue(Temp);
         }
 
         protected override void HandleDevicePropertyChange(ArduinoDevice device, PropertyInfo property)

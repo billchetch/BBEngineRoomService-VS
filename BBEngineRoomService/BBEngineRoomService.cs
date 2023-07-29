@@ -80,6 +80,11 @@ namespace BBEngineRoomService
         private Engine _testEngine;
         public Engine TestEngine { get { return _testEngine;  } }
 
+        protected override bool CanLogEvent(ArduinoObject ao, string eventName)
+        {
+            return true;
+        }
+
         virtual protected void OnTestTimer(Object sender, EventArgs earg)
         {
             if (!_enginesADM.IsReady) return;
@@ -193,6 +198,14 @@ namespace BBEngineRoomService
                 _alarmManager.AlarmStateChanged += (Object sender, AlarmManager.Alarm alarm) =>
                 {
                     _alarmManager.NotifyAlarmsService(this, alarm);
+                    try
+                    {
+                        ServiceDB?.LogEvent("Alarm", alarm.ID, alarm.State, "alarm changed state");
+                    }
+                    catch
+                    {
+                        //fail silently
+                    }
                 };
                 
                 return true;
