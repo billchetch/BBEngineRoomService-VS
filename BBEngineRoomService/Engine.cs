@@ -45,10 +45,10 @@ namespace BBEngineRoomService
 
         public class OilSensorSwitch : SwitchDevice
         {
+
             public OilSensorSwitch(String id, byte pinNumber) : base(id, SwitchMode.PASSIVE, pinNumber, SwitchPosition.OFF, 100) { }
 
             public bool DetectedPressure => IsOn;
-
         } //end oil sensor
 
         
@@ -57,8 +57,8 @@ namespace BBEngineRoomService
             OFF = 0,
             SLOW = 250,
             NORMAL = 1000,
-            FAST = 2000,
-            TOO_FAST = 2500,
+            FAST = 1620, //54Hz for singple phase 2-pole dynamo
+            TOO_FAST = 2000,
         }
 
         
@@ -74,8 +74,8 @@ namespace BBEngineRoomService
         public enum TemperatureState
         {
             OK,
-            HOT = 32,
-            TOO_HOT = 33,
+            HOT = 45,
+            TOO_HOT = 50,
         }
 
 
@@ -143,9 +143,6 @@ namespace BBEngineRoomService
                     case EngineRPMState.FAST:
                         AlarmManager?.Raise(alarmID, AlarmState.MODERATE, String.Format("Engine {0} is running fast @ {1} RPM", UID, RPM));
                         break;
-                    case EngineRPMState.SLOW:
-                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, String.Format("Engine {0} is running slow @ {1} RPM", UID, RPM));
-                        break;
                     default:
                         AlarmManager?.Lower(alarmID, String.Format("Engine {0} is running acceptable RPM  @ {1} RPM", UID, RPM));
                         break;
@@ -212,7 +209,14 @@ namespace BBEngineRoomService
         {
             get
             {
-                return IsRunning ? (int)(DateTime.Now - LastOn).TotalSeconds : 0;
+                if (!IsRunning)
+                {
+                    return -1;
+                }
+                else
+                {
+                    return (int)(DateTime.Now - LastOn).TotalSeconds;
+                }
             }
         }
 
@@ -222,10 +226,25 @@ namespace BBEngineRoomService
             {
                 if (IsRunning)
                 {
-                    return 0;
+                    return -1;
                 } else
                 {
-                    return (int)(DateTime.Now - LastOff).TotalSeconds;
+                    return LastOff == default(DateTime) ? CHECK_OIL_IF_STOPPED_RUNNING + 1 : (int)(DateTime.Now - LastOff).TotalSeconds;
+                }
+            }
+        }
+
+        public int RanFor
+        {
+            get
+            {
+                if (IsRunning)
+                {
+                    return -1;
+                }
+                else
+                {
+                    return LastOff == default(DateTime) || LastOn == default(DateTime) ? -1 : (int)(LastOff - LastOn).TotalSeconds;
                 }
             }
         }
@@ -250,7 +269,11 @@ namespace BBEngineRoomService
             OilSensor.Tolerance = 100; //designed to prevent bounce
             OilSensor.Switched += (Object sender, SwitchDevice.SwitchPosition pos) =>
             {
-                checkOilPressure();
+                //delay the check so that we guarantee an RPM update which in turn determines the running status
+                Task.Delay(RPMSensor.ReportInterval + 500).ContinueWith(_ =>
+                {
+                    checkOilPressure();
+                });
             };
 
             TempSensor = new TemperatureSensor(CreateDeviceID("temp"), tempSensorPin, DS18B20Array.BitResolution.VERY_LOW);
@@ -269,35 +292,36 @@ namespace BBEngineRoomService
         private void onEngineStarted()
         {
             LastOn = DateTime.Now;
-            EngineStarted?.Invoke(this, RPM);
+            try
+            {
+                EngineStarted?.Invoke(this, RPM);
+            }
+            catch { } //do nothing
+
             Task.Delay((CHECK_OIL_IF_RUNNING * 1000) + 500).ContinueWith(_ =>
             {
-                checkOilPressure(); //this is a delayed method see method body
+                checkOilPressure(); 
             });
         }
 
         private void onEngineStopped()
         {
             LastOff = DateTime.Now;
-            EngineStopped?.Invoke(this, RPM);
+            try
+            {
+                EngineStopped?.Invoke(this, RPM);
+            }
+            catch { } //do nothing
+
             Task.Delay((CHECK_OIL_IF_STOPPED_RUNNING * 1000) + 500).ContinueWith(_ =>
             {
-                checkOilPressure(); //this is a delayed method see method body
+                checkOilPressure(); 
             });
         }
 
         //TODO: change to private
         private void monitorRPM()
         {
-            Console.WriteLine("RPM: {0} Count: {1} CountPerSecond: {2}, CountDuration: {3}, IntervalDuration: {4}, State: {5}", 
-                (int)System.Math.Round(RPMSensor.IntervalsPerSecond * 60), 
-                RPMSensor.Count,
-                RPMSensor.CountPerSecond,
-                RPMSensor.CountDuration,
-                RPMSensor.IntervalDuration,
-                RPMState);
-
-
             //assign the sensor value to the engine property
             RPM = RPMSensor.RPM;
 
@@ -313,13 +337,21 @@ namespace BBEngineRoomService
             {
                 RPMState = EngineRPMState.OFF;
             }
+
+            Console.WriteLine("RPM: {0} Count: {1} CountPerSecond: {2}, CountDuration: {3}, IntervalDuration: {4}, State: {5}",
+                RPM,
+                RPMSensor.Count,
+                RPMSensor.CountPerSecond,
+                RPMSensor.CountDuration,
+                RPMSensor.IntervalDuration,
+                RPMState);
         }
 
 
         //TODO: change to private
         private void checkOilPressure()
         {
-            Console.WriteLine("Oli: {0}", OilSensor.DetectedPressure ? "pressure" : "no pressure");
+            Console.WriteLine("Oli pressure: {0}", OilSensor.DetectedPressure ? "Y" : "N");
 
             if (IsRunning && OilSensor.DetectedPressure) //if running for however long and oil sensor is off then that's correct
             {

@@ -73,7 +73,7 @@ namespace BBEngineRoomService.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("http://192.168.4.188:8001/api/services")]
+        [global::System.Configuration.DefaultSettingValueAttribute("http://192.168.2.188:8001/api/services")]
         public string NetworkServiceURL {
             get {
                 return ((string)(this["NetworkServiceURL"]));

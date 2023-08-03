@@ -61,6 +61,8 @@ namespace BBEngineRoomService
                 ServiceDB = _erdb;
                 Settings = Properties.Settings.Default;
 
+                LogSnapshotTimerInterval = 30 * 1000;
+                Tracing?.TraceEvent(TraceEventType.Information, 0, "Setting snapshot timer interval to {0}", LogSnapshotTimerInterval);
             }
             catch (Exception e)
             {
@@ -69,92 +71,68 @@ namespace BBEngineRoomService
             }
 
         }
+        
 
-        private System.Timers.Timer _testTimer = new System.Timers.Timer();
-        private SwitchDevice _testSwitch;
-        private bool _flag = true;
-        private int _onCount = 0;
-        private Chetch.Arduino2.Devices.Ticker _ticker;
-        private Chetch.Arduino2.Devices.Diagnostics.TestDevice01 _testDevice;
-        private TestBandwidth _testBandwidth;
         private Engine _testEngine;
         public Engine TestEngine { get { return _testEngine;  } }
+
+
 
         protected override bool CanLogEvent(ArduinoObject ao, string eventName)
         {
             return true;
         }
 
-        virtual protected void OnTestTimer(Object sender, EventArgs earg)
+        protected override ADMServiceDB.EventLogEntry GetEventLogEntry(ArduinoObject ao, DSOPropertyChangedEventArgs dsoArgs)
         {
-            if (!_enginesADM.IsReady) return;
-            /*if (!_testSwitch.IsOn)
-            {
-                _testSwitch.TurnOn(10);
-            } else
-            {
-                Console.WriteLine("oh no off...");
-            }*/
+            var entry = base.GetEventLogEntry(ao, dsoArgs);
 
-            /*if (_flag)
+            if(ao is Engine.OilSensorSwitch)
             {
-                _testSwitch.TurnOn();
-                _onCount++;
+                var oss = (Engine.OilSensorSwitch)ao;
+                entry.Info = String.Format("Pos: {0}, PinState: {1}, Pressure: {2}", oss.Position, oss.PinState, oss.DetectedPressure ? "Y" : "N");
             }
-            else
-            {
-                _testSwitch.TurnOff();
-                //Console.WriteLine("Turning it off");
-            }*/
-            //_testBandwidth.RequestStatus();
-            //Console.WriteLine("Sent status request...");
 
-            /*String s2e = "Hey...";
-            _testBandwidth.Echo(s2e);
-            Console.WriteLine("Echo {0}", s2e);
-
-
-            String s2a = "Yip...";
-            _testBandwidth.Analyse(s2a);
-            Console.WriteLine("Analayse {0}", s2a);*/
-            _flag = !_flag;
+            return entry;
         }
 
-        protected void OnTestResults(object sender, TestBandwidth.TestEventArgs ea)
+        protected override bool CanLogToSnapshot(ArduinoObject ao)
         {
-            if (!ea.Results.IsTesting && ea.Results.MessagesReceived == ea.Results.MessagesSent)
+            if(ao is Engine)
             {
-
+                return true;
             }
-            else
-            {
-                String s = TestBandwidth.FormatResultsAsString(ea.Results);
-                Console.WriteLine(s);
-
-                TestBandwidth tbw = (TestBandwidth)sender;
-                Console.WriteLine("Remote: mrec: {0}, msent: {1}, cts: {2}, rb used: {3}, sb used: {4}, b2r: {5}", tbw.RemoteMessagesReceived, tbw.RemoteMessagesSent, tbw.RemoteCTS, tbw.RemoteRBUsed, tbw.RemoteSBUsed, tbw.RemoteBytesToRead);
-                
-             }
+            return false;
         }
 
-        override public void Test(String[] args = null)
+        protected override List<ADMServiceDB.SnapshotLogEntry> GetSnapshotLogEntries(ArduinoObject ao)
         {
-            /*Console.WriteLine("Setting RPM to 3000 and waiting...");
-            _testEngine.RPMSensor.RPM = 3000;
-            _testEngine.monitorRPM();
-            System.Threading.Thread.Sleep(2000);
+            List<ADMServiceDB.SnapshotLogEntry> entries = new List<ADMServiceDB.SnapshotLogEntry>();
+            if(ao is Engine)
+            {
+                var engine = (Engine)ao;
+                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.RPMSensor.UID, "RPM", engine.RPM, String.Format("RPMState: {0}", engine.RPMState)));
+                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.OilSensor.UID, "Oil", engine.OilPressure));
+                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, String.Format("TempState: {0}", engine.TempState)));
+            }
 
-            Console.WriteLine("Setting RPM to 500 and waiting...");
-            _testEngine.RPMSensor.RPM = 500;
-            _testEngine.monitorRPM();
-            System.Threading.Thread.Sleep(2000);
-
-            Console.WriteLine("Setting RPM to 1500 and waiting...");
-            _testEngine.RPMSensor.RPM = 1500;
-            _testEngine.monitorRPM();
-            System.Threading.Thread.Sleep(2000);*/
+            return entries;
+        }
 
 
+        private void onEngineStarted(Object sender, double rpm)
+        {
+            Engine engine = (Engine)sender;
+            String info = String.Format("Engine started with rpm {0}", rpm);
+            ServiceDB.LogEvent("Engine Started", engine.UID, rpm, info);
+        }
+
+        private void onEngineStopped(Object sender, double rpm)
+        {
+            Engine engine = (Engine)sender;
+            TimeSpan duration = TimeSpan.FromSeconds(engine.RanFor);
+            String info = String.Format("Engine stopped with rpm {0}, ran for: {1}", rpm, duration.ToString("c"));
+            ServiceDB.LogEvent("Engine Stopped", engine.UID, rpm, info);
         }
 
         protected override bool CreateADMs()
@@ -168,31 +146,18 @@ namespace BBEngineRoomService
                 _enginesADM = ArduinoDeviceManager.Create(enginesServiceName, networkServiceURL, 256, 256);
                 //_enginesADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_ARDUINO, 115200, 64, 64);
                 _testEngine = new Engine("gs1", 19, 5, 9);
+                _testEngine.RPMSensor.ConversionFactor = 0.537;
+                _testEngine.EngineStarted += onEngineStarted;
+                _testEngine.EngineStopped += onEngineStopped;
+
                 //_testEngine2 = new Engine("gs2", 18, 6, 10);
 
 
-                _ticker = new Ticker("tk1", 5, 800, 200);
-                _ticker.ReportInterval = 1000;
-                _ticker.DataReceived += (Object sender, Chetch.Arduino2.ArduinoObject.MessageReceivedArgs ea) =>
-                {
-                    var tk = (Ticker)sender;
-                    Console.WriteLine(" >>>>>>>>>>>>>>>>> {0} tick count {1}", tk.UID, tk.TickCount);
-                };
-                
-                
-                
 
                 _enginesADM.AddDeviceGroup(_testEngine);
-                //_enginesADM.AddDevice(oilSensor);
-                //_enginesADM.AddDevice(_testSwitch);
-                //_enginesADM.AddDevice(_testBandwidth);
-                //_enginesADM.AddDevice(_ticker);
                 
-
-
                 AddADM(_enginesADM);
-                //AddADM(_gensetsADM);
-
+                
                 //add alarm raisers
                 _alarmManager.AddRaisers(GetArduinoObjects());
                 _alarmManager.AlarmStateChanged += (Object sender, AlarmManager.Alarm alarm) =>
@@ -200,7 +165,8 @@ namespace BBEngineRoomService
                     _alarmManager.NotifyAlarmsService(this, alarm);
                     try
                     {
-                        ServiceDB?.LogEvent("Alarm", alarm.ID, alarm.State, "alarm changed state");
+                        Tracing?.TraceEvent(TraceEventType.Warning, 999, "Alarm {0} changed state to {1} - {2}", alarm.ID, alarm.State, alarm.Message);
+                        ServiceDB?.LogEvent("Alarm", alarm.ID, alarm.State, alarm.Message);
                     }
                     catch
                     {
@@ -215,24 +181,10 @@ namespace BBEngineRoomService
             }
         }
 
-        protected override void OnADMsReady()
-        {
-            Console.WriteLine("All adms are ready to use brah...");
-
-            //_testBandwidth.StartTest(6*60*60, 200, 50);
-        }
-
-        protected override void OnStop()
-        {
-            _testBandwidth?.StopTest();
-
-            base.OnStop();
-        }
-
-        protected override void HandleAOPropertyChange(object sender, PropertyChangedEventArgs eargs)
+        /*protected override void HandleAOPropertyChange(object sender, PropertyChangedEventArgs eargs)
         {
             base.HandleAOPropertyChange(sender, eargs);
-        }
+        }*/
 
         public Pump GetPump(String pumpID)
         {
