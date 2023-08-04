@@ -284,8 +284,8 @@ namespace BBEngineRoomService
             };
 
             AddDevice(RPMSensor);
-            AddDevice(OilSensor);
-            AddDevice(TempSensor);
+            //AddDevice(OilSensor);
+            //AddDevice(TempSensor);
         }
 
 

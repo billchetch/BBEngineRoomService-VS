@@ -135,50 +135,42 @@ namespace BBEngineRoomService
             ServiceDB.LogEvent("Engine Stopped", engine.UID, rpm, info);
         }
 
-        protected override bool CreateADMs()
+        protected override void CreateADMs()
         {
-            try
+            String networkServiceURL = (String)Settings["NetworkServiceURL"];
+            String enginesServiceName = "crayfish";
+            String gensetsServiceName = "";
+
+            //_enginesADM = ArduinoDeviceManager.Create(enginesServiceName, networkServiceURL, 256, 256);
+            _enginesADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_ARDUINO, 115200, 64, 64);
+            _testEngine = new Engine("gs1", 19, 5, 9);
+            _testEngine.RPMSensor.ConversionFactor = 0.537;
+            _testEngine.EngineStarted += onEngineStarted;
+            _testEngine.EngineStopped += onEngineStopped;
+
+            //_testEngine2 = new Engine("gs2", 18, 6, 10);
+
+
+
+            _enginesADM.AddDeviceGroup(_testEngine);
+                
+            AddADM(_enginesADM);
+                
+            //add alarm raisers
+            _alarmManager.AddRaisers(GetArduinoObjects());
+            _alarmManager.AlarmStateChanged += (Object sender, AlarmManager.Alarm alarm) =>
             {
-                String networkServiceURL = (String)Settings["NetworkServiceURL"];
-                String enginesServiceName = "crayfish";
-                String gensetsServiceName = "";
-
-                _enginesADM = ArduinoDeviceManager.Create(enginesServiceName, networkServiceURL, 256, 256);
-                //_enginesADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_ARDUINO, 115200, 64, 64);
-                _testEngine = new Engine("gs1", 19, 5, 9);
-                _testEngine.RPMSensor.ConversionFactor = 0.537;
-                _testEngine.EngineStarted += onEngineStarted;
-                _testEngine.EngineStopped += onEngineStopped;
-
-                //_testEngine2 = new Engine("gs2", 18, 6, 10);
-
-
-
-                _enginesADM.AddDeviceGroup(_testEngine);
-                
-                AddADM(_enginesADM);
-                
-                //add alarm raisers
-                _alarmManager.AddRaisers(GetArduinoObjects());
-                _alarmManager.AlarmStateChanged += (Object sender, AlarmManager.Alarm alarm) =>
+                _alarmManager.NotifyAlarmsService(this, alarm);
+                try
                 {
-                    _alarmManager.NotifyAlarmsService(this, alarm);
-                    try
-                    {
-                        Tracing?.TraceEvent(TraceEventType.Warning, 999, "Alarm {0} changed state to {1} - {2}", alarm.ID, alarm.State, alarm.Message);
-                        ServiceDB?.LogEvent("Alarm", alarm.ID, alarm.State, alarm.Message);
-                    }
-                    catch
-                    {
-                        //fail silently
-                    }
-                };
-                
-                return true;
-            } catch (Exception e)
-            {
-                return false;
-            }
+                    Tracing?.TraceEvent(TraceEventType.Warning, 999, "Alarm {0} changed state to {1} - {2}", alarm.ID, alarm.State, alarm.Message);
+                    ServiceDB?.LogEvent("Alarm", alarm.ID, alarm.State, alarm.Message);
+                }
+                catch
+                {
+                    //fail silently
+                }
+            };
         }
 
         /*protected override void HandleAOPropertyChange(object sender, PropertyChangedEventArgs eargs)
