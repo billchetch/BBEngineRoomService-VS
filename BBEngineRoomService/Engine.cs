@@ -82,7 +82,7 @@ namespace BBEngineRoomService
         //Constants
         public const int IS_RUNNING_RPM_THRESHOLD = 250;
         public const int CHECK_OIL_IF_RUNNING = 5; //in seconds
-        public const int CHECK_OIL_IF_STOPPED_RUNNING = 5; //in seconds
+        public const int CHECK_OIL_IF_STOPPED_RUNNING = 8; //in seconds
 
         public EventHandler<double> EngineStarted;
         public EventHandler<double> EngineStopped;
@@ -284,8 +284,8 @@ namespace BBEngineRoomService
             };
 
             AddDevice(RPMSensor);
-            //AddDevice(OilSensor);
-            //AddDevice(TempSensor);
+            AddDevice(OilSensor);
+            AddDevice(TempSensor);
         }
 
 
