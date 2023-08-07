@@ -112,13 +112,23 @@ namespace BBEngineRoomService
             {
                 var engine = (Engine)ao;
                 entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.RPMSensor.UID, "RPM", engine.RPM, String.Format("RPMState: {0}", engine.RPMState)));
-                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.OilSensor.UID, "Oil", engine.OilPressure));
-                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, String.Format("TempState: {0}", engine.TempState)));
+                //entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.OilSensor.UID, "Oil", engine.OilPressure));
+                //entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, String.Format("TempState: {0}", engine.TempState)));
             }
 
             return entries;
         }
 
+        protected override bool CanDispatch(ArduinoObject ao, string propertyName)
+        {
+            if(ao is Engine)
+            {
+                return true;
+            }
+
+
+            return base.CanDispatch(ao, propertyName);
+        }
 
         private void onEngineStarted(Object sender, double rpm)
         {
@@ -141,8 +151,8 @@ namespace BBEngineRoomService
             String enginesServiceName = "crayfish";
             String gensetsServiceName = "";
 
-            //_enginesADM = ArduinoDeviceManager.Create(enginesServiceName, networkServiceURL, 256, 256);
-            _enginesADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_ARDUINO, 115200, 64, 64);
+            _enginesADM = ArduinoDeviceManager.Create(enginesServiceName, networkServiceURL, 256, 256);
+            //_enginesADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_ARDUINO, 115200, 64, 64);
             _testEngine = new Engine("gs1", 19, 5, 9);
             _testEngine.RPMSensor.ConversionFactor = 0.537;
             _testEngine.EngineStarted += onEngineStarted;

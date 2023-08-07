@@ -104,6 +104,8 @@ namespace BBEngineRoomService
 
         //Engine Properties
         private bool _running = false;
+
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA, false)]
         public bool Running
         {
             get { return _running; }
@@ -152,6 +154,8 @@ namespace BBEngineRoomService
 
 
         private OilPressureState _oilPressure = OilPressureState.OK_ENGINE_OFF;
+
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA, OilPressureState.OK_ENGINE_OFF)]
         public OilPressureState OilPressure
         {
             get { return _oilPressure; }
@@ -202,9 +206,15 @@ namespace BBEngineRoomService
                 }
             }
         }
-        public DateTime LastOn { get; set; }
-        public DateTime LastOff { get; set; } 
 
+
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
+        public DateTime LastOn { get; set; }
+
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
+        public DateTime LastOff { get; set; }
+
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public int RunningFor
         {
             get
@@ -220,6 +230,7 @@ namespace BBEngineRoomService
             }
         }
 
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public int StoppedRunningFor
         {
             get
@@ -234,6 +245,7 @@ namespace BBEngineRoomService
             }
         }
 
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public int RanFor
         {
             get
@@ -249,9 +261,19 @@ namespace BBEngineRoomService
             }
         }
 
-        public int RPM { get; internal set; } = 0;
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA, 0)]
+        public int RPM
+        { 
+            get { return Get<int>(); }
+            internal set { Set(value, true, true); }
+        }
 
-        public double Temp { get; internal set; } = 0;
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA, 0)]
+        public double Temp 
+        {
+            get { return Get<double>(); }
+            internal set { Set(value, true, true); }
+        }
 
         public Engine(String id, byte rpmPin, byte oilSensorPin, byte tempSensorPin) : base(id, null)
         {
