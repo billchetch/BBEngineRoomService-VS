@@ -54,6 +54,7 @@ namespace BBEngineRoomService
         
         public enum EngineRPMState
         {
+            SENSOR_FAULT = -1,
             OFF = 0,
             SLOW = 250,
             NORMAL = 1000,
@@ -73,7 +74,8 @@ namespace BBEngineRoomService
 
         public enum TemperatureState
         {
-            OK,
+            SENSOR_FAULT = -1,
+            OK = 0, //0 to above
             HOT = 45,
             TOO_HOT = 50,
         }
@@ -188,6 +190,15 @@ namespace BBEngineRoomService
             {
                 _tempState = value;
                 String alarmID = TempSensor.ID;
+
+                //check if there is a sesor fault first
+                if(_tempState == TemperatureState.SENSOR_FAULT)
+                {
+                    AlarmManager?.Raise(alarmID, AlarmState.MODERATE, String.Format("Engine {0} temp sensor fault", UID));
+                    return;
+                }
+
+                //now process alarms based on real temperatures
                 if (Running)
                 {
                     switch (_tempState)
@@ -360,20 +371,20 @@ namespace BBEngineRoomService
                 RPMState = EngineRPMState.OFF;
             }
 
-            Console.WriteLine("RPM: {0} Count: {1} CountPerSecond: {2}, CountDuration: {3}, IntervalDuration: {4}, State: {5}",
+            /*Console.WriteLine("RPM: {0} Count: {1} CountPerSecond: {2}, CountDuration: {3}, IntervalDuration: {4}, State: {5}",
                 RPM,
                 RPMSensor.Count,
                 RPMSensor.CountPerSecond,
                 RPMSensor.CountDuration,
                 RPMSensor.IntervalDuration,
-                RPMState);
+                RPMState);*/
         }
 
 
         //TODO: change to private
         private void checkOilPressure()
         {
-            Console.WriteLine("Oli pressure: {0}", OilSensor.DetectedPressure ? "Y" : "N");
+            //Console.WriteLine("Oli pressure: {0}", OilSensor.DetectedPressure ? "Y" : "N");
 
             if (IsRunning && OilSensor.DetectedPressure) //if running for however long and oil sensor is off then that's correct
             {
@@ -399,9 +410,23 @@ namespace BBEngineRoomService
         //TODO: change to private
         private void monitorTemperature()
         {
-            Console.WriteLine("Temp: {0}", TempSensor.Temperature);
-            Temp = TempSensor.Temperature;
-            TempState = TempThresholds.GetValue(Temp);
+            //Console.WriteLine("Temp: {0}", TempSensor.Temperature);
+            switch (TempSensor.TemperatureSensorState)
+            {
+                case DS18B20Array.SensorState.BAD_READING:
+                    //Currently this will just be ignroed
+                    break;
+
+                case DS18B20Array.SensorState.NO_SENSOR:
+                    Temp = TempSensor.Temperature;
+                    TempState = TemperatureState.SENSOR_FAULT;
+                    break;
+
+                default:
+                    Temp = TempSensor.Temperature;
+                    TempState = TempThresholds.GetValue(Temp);
+                    break;
+            }
         }
 
         protected override void HandleDevicePropertyChange(ArduinoDevice device, PropertyInfo property)

@@ -111,9 +111,12 @@ namespace BBEngineRoomService
             if(ao is Engine)
             {
                 var engine = (Engine)ao;
-                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.RPMSensor.UID, "RPM", engine.RPM, String.Format("RPMState: {0}", engine.RPMState)));
-                //entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.OilSensor.UID, "Oil", engine.OilPressure));
-                //entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, String.Format("TempState: {0}", engine.TempState)));
+                String desc = String.Format("RPMState: {0}", engine.RPMState);
+                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.RPMSensor.UID, "RPM", engine.RPM, desc));
+                desc = String.Format("OilState: {0}", engine.OilPressure);
+                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.OilSensor.UID, "Oil", engine.OilPressure, desc));
+                desc = String.Format("TempState: {0}, Sensor State: {1}", engine.TempState, engine.TempSensor.TemperatureSensorState);
+                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, desc));
             }
 
             return entries;
