@@ -100,14 +100,14 @@ namespace BBEngineRoomService
         {
             if(ao is Engine)
             {
-                return true;
+                return ((Engine)ao).IsRunning;
             }
+
             return false;
         }
 
-        protected override List<ADMServiceDB.SnapshotLogEntry> GetSnapshotLogEntries(ArduinoObject ao)
+        protected override void AddSnapshotLogEntries(ArduinoObject ao, List<ADMServiceDB.SnapshotLogEntry> entries)
         {
-            List<ADMServiceDB.SnapshotLogEntry> entries = new List<ADMServiceDB.SnapshotLogEntry>();
             if(ao is Engine)
             {
                 var engine = (Engine)ao;
@@ -118,8 +118,6 @@ namespace BBEngineRoomService
                 desc = String.Format("TempState: {0}, Sensor State: {1}", engine.TempState, engine.TempSensor.TemperatureSensorState);
                 entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, desc));
             }
-
-            return entries;
         }
 
         protected override bool CanDispatch(ArduinoObject ao, string propertyName)
