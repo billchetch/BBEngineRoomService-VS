@@ -19,6 +19,8 @@ namespace BBEngineRoomService
 {
     public class BBEngineRoomService : ADMService
     {
+        public const String ENGINES_SERVICE_NAME = "lobster";
+        public const String GENSETS_SERVICE_NAME = "crayfish";
         public const String INDUK_ID = "idk";
         public const String BANTU_ID = "bnt";
         public const String GENSET1_ID = "gs1";
@@ -72,11 +74,6 @@ namespace BBEngineRoomService
 
         }
         
-
-        private Engine _testEngine;
-        public Engine TestEngine { get { return _testEngine;  } }
-
-
 
         protected override bool CanLogEvent(ArduinoObject ao, string eventName)
         {
@@ -149,24 +146,27 @@ namespace BBEngineRoomService
         protected override void CreateADMs()
         {
             String networkServiceURL = (String)Settings["NetworkServiceURL"];
-            String enginesServiceName = "crayfish";
-            String gensetsServiceName = "";
+            
+            _enginesADM = ArduinoDeviceManager.Create(ENGINES_SERVICE_NAME, networkServiceURL, 256, 256);
+            _gensetsADM = ArduinoDeviceManager.Create(GENSETS_SERVICE_NAME, networkServiceURL, 256, 256);
 
-            _enginesADM = ArduinoDeviceManager.Create(enginesServiceName, networkServiceURL, 256, 256);
-            //_enginesADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_ARDUINO, 115200, 64, 64);
-            _testEngine = new Engine("gs1", 19, 5, 9);
-            _testEngine.RPMSensor.ConversionFactor = 0.537;
-            _testEngine.EngineStarted += onEngineStarted;
-            _testEngine.EngineStopped += onEngineStopped;
+            //Induk
+            _induk = new Engine("idk", 19, 5, 9);
+            _induk.RPMSensor.ConversionFactor = 1.0; //TODO: find conversion factor
+            _induk.EngineStarted += onEngineStarted;
+            _induk.EngineStopped += onEngineStopped;
+            _enginesADM.AddDeviceGroup(_induk);
 
-            //_testEngine2 = new Engine("gs2", 18, 6, 10);
-
-
-
-            _enginesADM.AddDeviceGroup(_testEngine);
+            //Genset 1
+            _gs1 = new Engine("gs1", 19, 5, 9);
+            _gs1.RPMSensor.ConversionFactor = 0.537;
+            _gs1.EngineStarted += onEngineStarted;
+            _gs1.EngineStopped += onEngineStopped;
+            _gensetsADM.AddDeviceGroup(_gs1);
                 
             AddADM(_enginesADM);
-                
+            //AddADM(_gensetsADM);
+
             //add alarm raisers
             _alarmManager.AddRaisers(GetArduinoObjects());
             _alarmManager.AlarmStateChanged += (Object sender, AlarmManager.Alarm alarm) =>
@@ -230,17 +230,6 @@ namespace BBEngineRoomService
                 case AlarmsMessageSchema.COMMAND_ALARM_STATUS:
                     _alarmManager.NotifyAlarmsService(this);
                     return false; //no need to send a response (save on bandwidth)
-
-                case AlarmsMessageSchema.COMMAND_TEST_ALARM:
-                    if (args.Count == 0)
-                    {
-                        throw new Exception("Please pecify an alarm ID");
-                    }
-                    alarmID = args[0].ToString();
-
-                    _alarmManager.StartTest(alarmID, AlarmState.MODERATE, "Raising the alarm as a test baby for a short time...");
-                    
-                    return true;
 
                 default:
                     return base.HandleCommand(cnn, message, cmd, args, response);
