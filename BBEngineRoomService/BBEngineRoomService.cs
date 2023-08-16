@@ -19,15 +19,18 @@ namespace BBEngineRoomService
 {
     public class BBEngineRoomService : ADMService
     {
-        public const String ENGINES_SERVICE_NAME = "lobster";
-        public const String GENSETS_SERVICE_NAME = "crayfish";
+        public const String LOBSTER_SERVICE_NAME = "lobster";
+        public const String CRAYFISH_SERVICE_NAME = "crayfish";
+        
         public const String INDUK_ID = "idk";
         public const String BANTU_ID = "bnt";
+
         public const String GENSET1_ID = "gs1";
         public const String GENSET2_ID = "gs2";
-        
-        public const String POMPA_CELUP_ID = "pmp_clp";
-        public const String POMPA_SOLAR_ID = "pmp_sol";
+        public const double GENSET_CONVERSION_FACTOR = 0.537;
+
+        public const String POMPA_CELUP_ID = "pmp-clp";
+        public const String POMPA_SOLAR_ID = "pmp-sol";
 
         
         private AlarmManager _alarmManager = new AlarmManager();
@@ -43,8 +46,8 @@ namespace BBEngineRoomService
         private Engine _gs1;
         private Engine _gs2;
 
-        ArduinoDeviceManager _enginesADM; //one board manages Induk and Bantu
-        ArduinoDeviceManager _gensetsADM; //One board manages gs1 and gs2
+        ArduinoDeviceManager _lobsterADM; //one board manages Induk and Bantu and pumps
+        ArduinoDeviceManager _crayfishADM; //One board manages gs1 and gs2
 
 
         public BBEngineRoomService(bool test = false) :  base("BBEngineRoom", test ? null : "BBERClient", test ? "ADMServiceTest" : "BBEngineRoomService", test ? null : "BBEngineRoomServiceLog") 
@@ -143,31 +146,76 @@ namespace BBEngineRoomService
             ServiceDB.LogEvent("Engine Stopped", engine.UID, rpm, info);
         }
 
+        private void onPumpStarted(Object sender, EventArgs ea)
+        {
+            Pump pump = (Pump)sender;
+            String info = String.Format("Pump {0} has started", pump.UID);
+            ServiceDB.LogEvent("Pump Started", pump.UID, pump.PinState, info);
+        }
+
+        private void onPumpStopped(Object sender, EventArgs ea)
+        {
+            Pump pump = (Pump)sender;
+            String duration = TimeSpan.FromSeconds((int)pump.RanFor.TotalSeconds).ToString("c");
+            String info = String.Format("Pump {0} has stopped, it ran for {1}", pump.UID, duration);
+            ServiceDB.LogEvent("Pump Stopped", pump.UID, pump.PinState, info);
+        }
+
+
         protected override void CreateADMs()
         {
             String networkServiceURL = (String)Settings["NetworkServiceURL"];
             
-            _enginesADM = ArduinoDeviceManager.Create(ENGINES_SERVICE_NAME, networkServiceURL, 256, 256);
-            _gensetsADM = ArduinoDeviceManager.Create(GENSETS_SERVICE_NAME, networkServiceURL, 256, 256);
+            _lobsterADM = ArduinoDeviceManager.Create(LOBSTER_SERVICE_NAME, networkServiceURL, 256, 256);
+            _crayfishADM = ArduinoDeviceManager.Create(CRAYFISH_SERVICE_NAME, networkServiceURL, 256, 256);
 
             //Induk
-            _induk = new Engine("idk", 19, 5, 9);
+            _induk = new Engine(INDUK_ID, 18, 6, 9);
             _induk.RPMSensor.ConversionFactor = 1.0; //TODO: find conversion factor
             _induk.EngineStarted += onEngineStarted;
             _induk.EngineStopped += onEngineStopped;
-            _enginesADM.AddDeviceGroup(_induk);
+            //_lobsterADM.AddDeviceGroup(_induk);
+
+            //Bantu
+            _bantu = new Engine(BANTU_ID, 19, 5, 8);
+            _bantu.RPMSensor.ConversionFactor = 1.0; //TODO: find conversion factor
+            _bantu.EngineStarted += onEngineStarted;
+            _bantu.EngineStopped += onEngineStopped;
+            //_lobsterADM.AddDeviceGroup(_bantu);
+
+            //Diesel pump
+            _pompaSolar = new Pump(POMPA_SOLAR_ID, 10);
+            _pompaSolar.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 2;
+            _pompaSolar.PumpeStarted += onPumpStarted;
+            _pompaSolar.PumpStopped += onPumpStopped;
+            //_lobsterADM.AddDevice(_pompaSolar);
+
+            //Bilge pump
+            _pompaCelup = new Pump(POMPA_CELUP_ID, 11);
+            _pompaCelup.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 2;
+            _pompaCelup.PumpeStarted += onPumpStarted;
+            _pompaCelup.PumpStopped += onPumpStopped;
+            _lobsterADM.AddDevice(_pompaCelup);
+
 
             //Genset 1
-            _gs1 = new Engine("gs1", 19, 5, 9);
-            _gs1.RPMSensor.ConversionFactor = 0.537;
+            _gs1 = new Engine(GENSET1_ID, 19, 5, 9);
+            _gs1.RPMSensor.ConversionFactor = GENSET_CONVERSION_FACTOR; //TODO: Should be same for both gensets
             _gs1.EngineStarted += onEngineStarted;
             _gs1.EngineStopped += onEngineStopped;
-            _gensetsADM.AddDeviceGroup(_gs1);
-                
-            AddADM(_enginesADM);
-            //AddADM(_gensetsADM);
+            _crayfishADM.AddDeviceGroup(_gs1);
 
-            //add alarm raisers
+            //Genset 2
+            _gs2 = new Engine(GENSET2_ID, 18, 6, 10);
+            _gs2.RPMSensor.ConversionFactor = GENSET_CONVERSION_FACTOR; //TODO: Should be same for both gensets
+            _gs2.EngineStarted += onEngineStarted;
+            _gs2.EngineStopped += onEngineStopped;
+            _crayfishADM.AddDeviceGroup(_gs2);
+
+            //AddADM(_lobsterADM);
+            AddADM(_crayfishADM);
+
+            //Add alarm raisers and state change handler
             _alarmManager.AddRaisers(GetArduinoObjects());
             _alarmManager.AlarmStateChanged += (Object sender, AlarmManager.Alarm alarm) =>
             {
@@ -236,155 +284,6 @@ namespace BBEngineRoomService
             }
         }
     
-        /*
-            override public bool HandleCommand(Connection cnn, Message message, String cmd, List<Object> args, Message response)
-            {
-                //return value of true/false determines whether response message is broadcast or not
-
-                EngineRoomMessageSchema schema = new EngineRoomMessageSchema(response);
-                Engine engine;
-                List<Engine> engines;
-                bool enable;
-
-                Pump pump;
-                switch (cmd)
-                {
-                    case EngineRoomMessageSchema.COMMAND_TEST:
-                        //schema.AddPompaCelup(_pompaCelup);
-                        //Message alert = BBAlarmsService.BBAlarmsService.EngineRoomMessageSchema.RaiseAlarm(_pompaCelup.ID, true, "Test raising alarm");
-                        //Broadcast(alert);
-
-                        //Message 
-                        return false;
-
-                    case EngineRoomMessageSchema.COMMAND_LIST_ENGINES:
-                        engines = GetEngines();
-                        List<String> engineIDs = new List<String>();
-
-                        foreach(Engine eng in engines)
-                        {
-                            if (eng.Enabled) engineIDs.Add(eng.ID);
-                        }
-                        response.AddValue("Engines", engineIDs);
-                        return true;
-
-                    case EngineRoomMessageSchema.COMMAND_ENGINE_STATUS:
-                        if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No engine specified");
-                        engine = GetEngine(args[0].ToString());
-                        if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
-                        schema.AddEngine(engine);
-
-                        if (engine.RPM != null)
-                        {
-                            Task.Run(() => {
-                                System.Threading.Thread.Sleep(250);
-                                EngineRoomMessageSchema sc = new EngineRoomMessageSchema(new Message(MessageType.DATA, response.Target));
-                                sc.AddRPM(engine.RPM);
-                                SendMessage(sc.Message);
-                            });
-
-                        }
-
-                        if (engine.OilSensor != null)
-                        {
-                            Task.Run(() => {
-                                System.Threading.Thread.Sleep(250);
-                                EngineRoomMessageSchema sc = new EngineRoomMessageSchema(new Message(MessageType.DATA, response.Target));
-                                sc.AddOilSensor(engine.OilSensor);
-                                SendMessage(sc.Message);
-                            });
-                        }
-
-                        if(engine.TempSensor != null)
-                        {
-                            Task.Run(() => {
-                                System.Threading.Thread.Sleep(250);
-                                EngineRoomMessageSchema sc = new EngineRoomMessageSchema(new Message(MessageType.DATA, response.Target));
-                                sc.AddDS18B20Sensor(engine.TempSensor);
-                                SendMessage(sc.Message);
-                            });
-                        }
-
-                        return true;
-
-                    case EngineRoomMessageSchema.COMMAND_ENABLE_ENGINE:
-                        if (args == null || args.Count < 1) throw new Exception("No engine specified");
-                        engine = GetEngine(args[0].ToString());
-                        if (engine == null) throw new Exception("Cannot find engine with ID " + args[0]);
-                        enable = args.Count > 1 ? System.Convert.ToBoolean(args[1]) : true;
-                        if (enable != engine.Enabled)
-                        {
-                            engine.Enable(enable);
-                            EngineRoomServiceDB.LogEventType let = engine.Enabled ? EngineRoomServiceDB.LogEventType.ENABLE : EngineRoomServiceDB.LogEventType.DISABLE;
-                            _erdb.LogEvent(let, engine.ID, let.ToString() + " engine " + engine.ID);
-                            schema.AddEngine(engine);
-                        }
-                        return true;
-
-                    case EngineRoomMessageSchema.COMMAND_PUMP_STATUS:
-                        if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No pump specified");
-                        pump = GetPump(args[0].ToString());
-                        schema.AddPump(pump);
-                        response.Type = MessageType.DATA;
-                        return true;
-
-                    case EngineRoomMessageSchema.COMMAND_ENABLE_PUMP:
-                        if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No pump specified");
-                        pump = GetPump(args[0].ToString());
-                        enable = args.Count > 1 ? System.Convert.ToBoolean(args[1]) : true;
-                        if (enable != pump.Enabled)
-                        {
-                            pump.Enable(enable);
-                            EngineRoomServiceDB.LogEventType let = pump.Enabled ? EngineRoomServiceDB.LogEventType.ENABLE : EngineRoomServiceDB.LogEventType.DISABLE;
-                            _erdb.LogEvent(let, pump.ID, let.ToString() + " pump " + pump.ID);
-                            schema.AddPump(pump);
-                        }
-                        return true;
-
-                    case EngineRoomMessageSchema.COMMAND_WATER_TANK_STATUS:
-                        if (args == null || args.Count == 0 || args[0] == null) throw new Exception("No tank specified");
-                        WaterTanks.FluidTank waterTank = (WaterTanks.FluidTank)_waterTanks.GetDevice(args[0].ToString());
-                        schema.AddWaterTank(waterTank);
-                        response.Type = MessageType.DATA;
-                        return true;
-
-                    case EngineRoomMessageSchema.COMMAND_WATER_STATUS:
-                        schema.AddWaterTanks(_waterTanks);
-                        return true;
-
-                    case EngineRoomMessageSchema.COMMAND_ENABLE_WATER:
-                        enable = args.Count > 0 ? System.Convert.ToBoolean(args[0]) : true;
-                        if(enable != _waterTanks.Enabled)
-                        {
-                            _waterTanks.Enable(enable);
-                            EngineRoomServiceDB.LogEventType let = _waterTanks.Enabled ? EngineRoomServiceDB.LogEventType.ENABLE : EngineRoomServiceDB.LogEventType.DISABLE;
-                            _erdb.LogEvent(let, _waterTanks.ID, let.ToString() + " water tanks");
-                            schema.AddWaterTanks(_waterTanks);
-                        }
-                        return true;
-
-                    case BBAlarmsService.AlarmsMessageSchema.COMMAND_ALARM_STATUS:
-                        OnMonitorEngineRoomTimer(null, null);
-                        return true;
-
-                    case BBAlarmsService.AlarmsMessageSchema.COMMAND_RAISE_ALARM:
-                        if (args == null || args.Count < 1) throw new Exception("No alarm specified");
-                        String alarmID = args[0].ToString();
-                        BBAlarmsService.AlarmState alarmState = BBAlarmsService.AlarmState.CRITICAL;
-                        BBAlarmsService.AlarmsMessageSchema.RaiseAlarm(this, alarmID, alarmState, "Raised alarm", true);
-                        return true;
-
-                   case BBAlarmsService.AlarmsMessageSchema.COMMAND_LOWER_ALARM:
-                        if (args == null || args.Count < 1) throw new Exception("No alarm specified");
-                        BBAlarmsService.AlarmsMessageSchema.LowerAlarm(this, args[0].ToString(), BBAlarmsService.AlarmState.OFF, "Lowered alarm", true);
-                        return true;
-
-                    default:
-                        return base.HandleCommand(cnn, message, cmd, args, response);
-                }
-            }
-            */
-
 
     } //end service class
 }

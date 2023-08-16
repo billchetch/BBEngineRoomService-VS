@@ -142,13 +142,13 @@ namespace BBEngineRoomService
                 switch (_rpmState)
                 {
                     case EngineRPMState.TOO_FAST:
-                        AlarmManager?.Raise(alarmID, AlarmState.SEVERE, String.Format("Engine {0} is running too fast @ {1} RPM", UID, RPM));
+                        AlarmManager?.Raise(alarmID, AlarmState.SEVERE, String.Format("Engine is running too fast @ {0} RPM", RPM));
                         break;
                     case EngineRPMState.FAST:
-                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, String.Format("Engine {0} is running fast @ {1} RPM", UID, RPM));
+                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, String.Format("Engine is running fast @ {0} RPM", RPM));
                         break;
                     default:
-                        AlarmManager?.Lower(alarmID, String.Format("Engine {0} is running acceptable RPM  @ {1} RPM", UID, RPM));
+                        AlarmManager?.Lower(alarmID, String.Format("Engine is running acceptable RPM  @ {0} RPM", RPM));
                         break;
                 }
             }
@@ -169,13 +169,13 @@ namespace BBEngineRoomService
                 {
                     case OilPressureState.OK_ENGINE_OFF:
                     case OilPressureState.OK_ENGINE_ON:
-                        AlarmManager?.Lower(alarmID, "balik ke normal dong");
+                        AlarmManager?.Lower(alarmID, "Oil sensor returned to normal");
                         break;
                     case OilPressureState.NO_PRESSURE:
-                        AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, "Parah ini");
+                        AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, "No pressure detected, potential leak!");
                         break;
                     case OilPressureState.SENSOR_FAULT:
-                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "kok sensor fautlnya");
+                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "Oil sensor fault");
                         break;
                 }
             }
@@ -194,36 +194,38 @@ namespace BBEngineRoomService
                 //check if there is a sesor fault first
                 if(_tempState == TemperatureState.SENSOR_FAULT)
                 {
-                    AlarmManager?.Raise(alarmID, AlarmState.MODERATE, String.Format("Engine {0} temp sensor fault", UID));
+                    AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "Temperature sensor fault");
                     return;
                 }
 
-                //now process alarms based on real temperatures
-                if (Running)
+                if(Running)
                 {
                     switch (_tempState)
                     {
                         case TemperatureState.TOO_HOT:
-                            AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, String.Format("Engine {0} is running too hot @ {1}", UID, Temp));
+                            AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, String.Format("Engine is running too hot @ {0}", Temp));
                             break;
                         case TemperatureState.HOT:
-                            AlarmManager?.Raise(alarmID, AlarmState.SEVERE, String.Format("Engine {0} is running hot @ {1}", UID, Temp));
+                            AlarmManager?.Raise(alarmID, AlarmState.SEVERE, String.Format("Engine is running hot @ {0}", Temp));
+                            break;
+                        default:
+                            AlarmManager?.Lower(alarmID, String.Format("Engine returned to acceptable temperature of {0}", Temp));
                             break;
                     }
                 } 
                 else
                 {
-                    AlarmManager?.Lower(alarmID, String.Format("Engine {0} returned to acceptable temperature of {1}", UID, Temp));
+                    AlarmManager?.Lower(alarmID, String.Format("Engine returned to acceptable temperature of {0}", Temp));
                 }
             }
         }
 
 
         [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
-        public DateTime LastOn { get; set; }
+        public DateTime LastOn { get; internal set; }
 
         [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
-        public DateTime LastOff { get; set; }
+        public DateTime LastOff { get; internal set; }
 
         [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public int RunningFor
@@ -371,13 +373,14 @@ namespace BBEngineRoomService
                 RPMState = EngineRPMState.OFF;
             }
 
-            /*Console.WriteLine("RPM: {0} Count: {1} CountPerSecond: {2}, CountDuration: {3}, IntervalDuration: {4}, State: {5}",
+            Console.WriteLine("{0} RPM: {1} Count: {2} CountPerSecond: {3}, CountDuration: {4}, IntervalDuration: {5}, State: {6}",
+                UID,
                 RPM,
                 RPMSensor.Count,
                 RPMSensor.CountPerSecond,
                 RPMSensor.CountDuration,
                 RPMSensor.IntervalDuration,
-                RPMState);*/
+                RPMState);
         }
 
 
@@ -410,7 +413,7 @@ namespace BBEngineRoomService
         //TODO: change to private
         private void monitorTemperature()
         {
-            //Console.WriteLine("Temp: {0}", TempSensor.Temperature);
+            Console.WriteLine("{0} Temp: {1}", UID, TempSensor.Temperature);
             switch (TempSensor.TemperatureSensorState)
             {
                 case DS18B20Array.SensorState.BAD_READING:
