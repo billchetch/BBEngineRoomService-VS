@@ -76,15 +76,15 @@ namespace BBEngineRoomService
         {
             SENSOR_FAULT = -1,
             OK = 0, //0 to above
-            HOT = 45,
-            TOO_HOT = 50,
+            HOT = 50,
+            TOO_HOT = 56,
         }
 
 
         //Constants
         public const int IS_RUNNING_RPM_THRESHOLD = 250;
-        public const int CHECK_OIL_IF_RUNNING = 5; //in seconds
-        public const int CHECK_OIL_IF_STOPPED_RUNNING = 8; //in seconds
+        public const int CHECK_OIL_IF_RUNNING = 10; //in seconds
+        public const int CHECK_OIL_IF_STOPPED_RUNNING = 30; //in seconds
 
         public EventHandler<double> EngineStarted;
         public EventHandler<double> EngineStopped;
@@ -175,12 +175,16 @@ namespace BBEngineRoomService
                         AlarmManager?.Raise(alarmID, AlarmState.CRITICAL, "No pressure detected, potential leak!");
                         break;
                     case OilPressureState.SENSOR_FAULT:
-                        AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "Oil sensor fault");
+                        if (RaiseAlarmOnOilSensorFault)
+                        {
+                            AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "Oil sensor fault");
+                        }
                         break;
                 }
             }
         }
 
+        public bool RaiseAlarmOnOilSensorFault { get; set; } = true;
 
         private TemperatureState _tempState = TemperatureState.OK;
         public TemperatureState TempState
@@ -305,7 +309,7 @@ namespace BBEngineRoomService
             OilSensor.Switched += (Object sender, SwitchDevice.SwitchPosition pos) =>
             {
                 //delay the check so that we guarantee an RPM update which in turn determines the running status
-                Task.Delay(RPMSensor.ReportInterval + 500).ContinueWith(_ =>
+                Task.Delay(2*RPMSensor.ReportInterval + 500).ContinueWith(_ =>
                 {
                     checkOilPressure();
                 });
@@ -380,14 +384,14 @@ namespace BBEngineRoomService
                 RPMSensor.CountPerSecond,
                 RPMSensor.CountDuration,
                 RPMSensor.IntervalDuration,
-                RPMState);
+                RPMState); 
         }
 
 
         //TODO: change to private
         private void checkOilPressure()
         {
-            //Console.WriteLine("Oli pressure: {0}", OilSensor.DetectedPressure ? "Y" : "N");
+            Console.WriteLine("Oli pressure: {0}", OilSensor.DetectedPressure ? "Y" : "N");
 
             if (IsRunning && OilSensor.DetectedPressure) //if running for however long and oil sensor is off then that's correct
             {
@@ -430,11 +434,6 @@ namespace BBEngineRoomService
                     TempState = TempThresholds.GetValue(Temp);
                     break;
             }
-        }
-
-        protected override void HandleDevicePropertyChange(ArduinoDevice device, PropertyInfo property)
-        {
-            //throw new NotImplementedException();
         }
 
         public void RegisterAlarms()

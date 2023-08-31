@@ -27,6 +27,8 @@ namespace BBEngineRoomService
         public AlarmManager AlarmManager { get; set; }
 
         private PumpState _pumpState = PumpState.OFF;
+
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA, PumpState.OFF)]
         public PumpState PumpActivityState 
         { 
             get { return _pumpState; } 
@@ -64,8 +66,11 @@ namespace BBEngineRoomService
 
         [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public DateTime StartedOn { get; internal set; }
+
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public DateTime StoppedOn { get; internal set; }
 
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public TimeSpan RunningFor
         {
             get
@@ -80,6 +85,7 @@ namespace BBEngineRoomService
             }
         }
 
+        [ArduinoProperty(ArduinoPropertyAttribute.DATA)]
         public TimeSpan RanFor
         {
             get

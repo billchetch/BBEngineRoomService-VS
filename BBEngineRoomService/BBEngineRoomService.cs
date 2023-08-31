@@ -24,10 +24,13 @@ namespace BBEngineRoomService
         
         public const String INDUK_ID = "idk";
         public const String BANTU_ID = "bnt";
+        public const double INDUK_CONVERSION_FACTOR = 85.0 / 135.0; //diameter of pulley wheels
+        public const double BANTU_CONVERSION_FACTOR = 85.0 / 145.0; //diameter of pulley wheels
 
         public const String GENSET1_ID = "gs1";
         public const String GENSET2_ID = "gs2";
-        public const double GENSET_CONVERSION_FACTOR = 0.537;
+        public const double GENSET1_CONVERSION_FACTOR = 0.537;
+        public const double GENSET2_CONVERSION_FACTOR = 0.557;
 
         public const String POMPA_CELUP_ID = "pmp-clp";
         public const String POMPA_SOLAR_ID = "pmp-sol";
@@ -37,14 +40,15 @@ namespace BBEngineRoomService
 
         private EngineRoomServiceDB _erdb;
         
-        private Pump _pompaCelup;
-        private Pump _pompaSolar;
-        //private WaterTanks _waterTanks;
-
         private Engine _induk;
         private Engine _bantu;
         private Engine _gs1;
         private Engine _gs2;
+
+        private Pump _pompaCelup;
+        private Pump _pompaSolar;
+        //private WaterTanks _waterTanks;
+
 
         ArduinoDeviceManager _lobsterADM; //one board manages Induk and Bantu and pumps
         ArduinoDeviceManager _crayfishADM; //One board manages gs1 and gs2
@@ -92,7 +96,7 @@ namespace BBEngineRoomService
                 var oss = (Engine.OilSensorSwitch)ao;
                 entry.Info = String.Format("Pos: {0}, PinState: {1}, Pressure: {2}", oss.Position, oss.PinState, oss.DetectedPressure ? "Y" : "N");
             }
-
+            
             return entry;
         }
 
@@ -125,8 +129,10 @@ namespace BBEngineRoomService
             if(ao is Engine)
             {
                 return true;
+            } else if(ao is Pump)
+            {
+                return true;
             }
-
 
             return base.CanDispatch(ao, propertyName);
         }
@@ -171,48 +177,56 @@ namespace BBEngineRoomService
 
             //Induk
             _induk = new Engine(INDUK_ID, 18, 6, 9);
-            _induk.RPMSensor.ConversionFactor = 1.0; //TODO: find conversion factor
+            _induk.RPMSensor.ConversionFactor = INDUK_CONVERSION_FACTOR;
+            _induk.RaiseAlarmOnOilSensorFault = false; //cos frequently disconnect battery
+            _induk.RPMThreholds[Engine.EngineRPMState.FAST] = 1700;
+            _induk.TempThresholds[Engine.TemperatureState.HOT] = 50;
+            _induk.TempThresholds[Engine.TemperatureState.TOO_HOT] = 55;
             _induk.EngineStarted += onEngineStarted;
             _induk.EngineStopped += onEngineStopped;
-            //_lobsterADM.AddDeviceGroup(_induk);
+            _lobsterADM.AddDeviceGroup(_induk);
 
             //Bantu
             _bantu = new Engine(BANTU_ID, 19, 5, 8);
-            _bantu.RPMSensor.ConversionFactor = 1.0; //TODO: find conversion factor
+            _bantu.RPMSensor.ConversionFactor = BANTU_CONVERSION_FACTOR; 
+            _bantu.RaiseAlarmOnOilSensorFault = false; //cos frequently disconnect battery
+            _induk.RPMThreholds[Engine.EngineRPMState.FAST] = 1800;
+            _bantu.TempThresholds[Engine.TemperatureState.HOT] = 50;
+            _bantu.TempThresholds[Engine.TemperatureState.TOO_HOT] = 55;
             _bantu.EngineStarted += onEngineStarted;
             _bantu.EngineStopped += onEngineStopped;
-            //_lobsterADM.AddDeviceGroup(_bantu);
-
-            //Diesel pump
-            _pompaSolar = new Pump(POMPA_SOLAR_ID, 10);
-            _pompaSolar.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 2;
-            _pompaSolar.PumpeStarted += onPumpStarted;
-            _pompaSolar.PumpStopped += onPumpStopped;
-            //_lobsterADM.AddDevice(_pompaSolar);
+            _lobsterADM.AddDeviceGroup(_bantu);
 
             //Bilge pump
-            _pompaCelup = new Pump(POMPA_CELUP_ID, 11);
-            _pompaCelup.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 2;
+            _pompaCelup = new Pump(POMPA_CELUP_ID, 10);
+            _pompaCelup.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 5 * 60;
             _pompaCelup.PumpeStarted += onPumpStarted;
             _pompaCelup.PumpStopped += onPumpStopped;
             _lobsterADM.AddDevice(_pompaCelup);
 
+            //Diesel pump
+            _pompaSolar = new Pump(POMPA_SOLAR_ID, 11);
+            _pompaSolar.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 3*60;
+            _pompaSolar.PumpeStarted += onPumpStarted;
+            _pompaSolar.PumpStopped += onPumpStopped;
+            _lobsterADM.AddDevice(_pompaSolar);
+
 
             //Genset 1
             _gs1 = new Engine(GENSET1_ID, 19, 5, 9);
-            _gs1.RPMSensor.ConversionFactor = GENSET_CONVERSION_FACTOR; //TODO: Should be same for both gensets
+            _gs1.RPMSensor.ConversionFactor = GENSET1_CONVERSION_FACTOR;
             _gs1.EngineStarted += onEngineStarted;
             _gs1.EngineStopped += onEngineStopped;
             _crayfishADM.AddDeviceGroup(_gs1);
 
             //Genset 2
             _gs2 = new Engine(GENSET2_ID, 18, 6, 10);
-            _gs2.RPMSensor.ConversionFactor = GENSET_CONVERSION_FACTOR; //TODO: Should be same for both gensets
+            _gs2.RPMSensor.ConversionFactor = GENSET2_CONVERSION_FACTOR; 
             _gs2.EngineStarted += onEngineStarted;
             _gs2.EngineStopped += onEngineStopped;
             _crayfishADM.AddDeviceGroup(_gs2);
 
-            //AddADM(_lobsterADM);
+            AddADM(_lobsterADM);
             AddADM(_crayfishADM);
 
             //Add alarm raisers and state change handler
@@ -276,7 +290,7 @@ namespace BBEngineRoomService
             switch (cmd)
             {
                 case AlarmsMessageSchema.COMMAND_ALARM_STATUS:
-                    _alarmManager.NotifyAlarmsService(this);
+                    _alarmManager.NotifyAlarmsService(this, null, message.Sender);
                     return false; //no need to send a response (save on bandwidth)
 
                 default:
