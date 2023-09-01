@@ -206,7 +206,7 @@ namespace BBEngineRoomService
 
             //Diesel pump
             _pompaSolar = new Pump(POMPA_SOLAR_ID, 11);
-            _pompaSolar.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 3*60;
+            _pompaSolar.PumpStateThresholds[Pump.PumpState.ON_TOO_LONG] = 10 * 60;
             _pompaSolar.PumpeStarted += onPumpStarted;
             _pompaSolar.PumpStopped += onPumpStopped;
             _lobsterADM.AddDevice(_pompaSolar);
