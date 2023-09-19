@@ -179,7 +179,7 @@ namespace BBEngineRoomService
             _induk = new Engine(INDUK_ID, 18, 6, 9);
             _induk.RPMSensor.ConversionFactor = INDUK_CONVERSION_FACTOR;
             _induk.RaiseAlarmOnOilSensorFault = false; //cos frequently disconnect battery
-            _induk.RPMThreholds[Engine.EngineRPMState.FAST] = 1700;
+            _induk.RPMThreholds[Engine.EngineRPMState.FAST] = 1850;
             _induk.TempThresholds[Engine.TemperatureState.HOT] = 50;
             _induk.TempThresholds[Engine.TemperatureState.TOO_HOT] = 55;
             _induk.EngineStarted += onEngineStarted;
@@ -190,7 +190,7 @@ namespace BBEngineRoomService
             _bantu = new Engine(BANTU_ID, 19, 5, 8);
             _bantu.RPMSensor.ConversionFactor = BANTU_CONVERSION_FACTOR; 
             _bantu.RaiseAlarmOnOilSensorFault = false; //cos frequently disconnect battery
-            _induk.RPMThreholds[Engine.EngineRPMState.FAST] = 1800;
+            _induk.RPMThreholds[Engine.EngineRPMState.FAST] = 1900;
             _bantu.TempThresholds[Engine.TemperatureState.HOT] = 50;
             _bantu.TempThresholds[Engine.TemperatureState.TOO_HOT] = 55;
             _bantu.EngineStarted += onEngineStarted;
