@@ -7,7 +7,6 @@ using Chetch.Arduino2.Devices;
 using Chetch.Arduino2.Devices.Temperature;
 using Chetch.Arduino2;
 using Chetch.Utilities;
-using Chetch.Arduino2.Devices.Temperature;
 using Chetch.Messaging;
 using Chetch.Database;
 using BBAlarmsService;
@@ -324,7 +323,7 @@ namespace BBEngineRoomService
 
             AddDevice(RPMSensor);
             AddDevice(OilSensor);
-            AddDevice(TempSensor);
+            //AddDevice(TempSensor);
         }
 
 

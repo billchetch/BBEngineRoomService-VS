@@ -21,6 +21,8 @@ namespace BBEngineRoomService
     {
         public const String LOBSTER_SERVICE_NAME = "lobster";
         public const String CRAYFISH_SERVICE_NAME = "crayfish";
+        public const String PLANKTON_SERVICE_NAME = "plankton";
+        public const String MOLLUSC_SERVICE_NAME = "mollusc";
         
         public const String INDUK_ID = "idk";
         public const String BANTU_ID = "bnt";
@@ -52,7 +54,8 @@ namespace BBEngineRoomService
 
         ArduinoDeviceManager _lobsterADM; //one board manages Induk and Bantu and pumps
         ArduinoDeviceManager _crayfishADM; //One board manages gs1 and gs2
-
+        ArduinoDeviceManager _molluscADM; //watter tanks in guest room
+        ArduinoDeviceManager _planktonADM; //water tanks in engineroom
 
         public BBEngineRoomService(bool test = false) :  base("BBEngineRoom", test ? null : "BBERClient", test ? "ADMServiceTest" : "BBEngineRoomService", test ? null : "BBEngineRoomServiceLog") 
         {
@@ -119,8 +122,8 @@ namespace BBEngineRoomService
                 entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.RPMSensor.UID, "RPM", engine.RPM, desc));
                 desc = String.Format("OilState: {0}", engine.OilPressure);
                 entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.OilSensor.UID, "Oil", engine.OilPressure, desc));
-                desc = String.Format("TempState: {0}, Sensor State: {1}", engine.TempState, engine.TempSensor.TemperatureSensorState);
-                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, desc));
+                //desc = String.Format("TempState: {0}, Sensor State: {1}", engine.TempState, engine.TempSensor.TemperatureSensorState);
+                //entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, desc));
             }
         }
 
@@ -174,7 +177,11 @@ namespace BBEngineRoomService
             
             _lobsterADM = ArduinoDeviceManager.Create(LOBSTER_SERVICE_NAME, networkServiceURL, 256, 256);
             _crayfishADM = ArduinoDeviceManager.Create(CRAYFISH_SERVICE_NAME, networkServiceURL, 256, 256);
+            _molluscADM = ArduinoDeviceManager.Create(MOLLUSC_SERVICE_NAME, networkServiceURL, 256, 256);
+            _planktonADM = ArduinoDeviceManager.Create(PLANKTON_SERVICE_NAME, networkServiceURL, 256, 256);
 
+
+            //LOBSTER SETUP
             //Induk
             _induk = new Engine(INDUK_ID, 18, 6, 9);
             _induk.RPMSensor.ConversionFactor = INDUK_CONVERSION_FACTOR;
@@ -211,8 +218,9 @@ namespace BBEngineRoomService
             _pompaSolar.PumpeStarted += onPumpStarted;
             _pompaSolar.PumpStopped += onPumpStopped;
             _lobsterADM.AddDevice(_pompaSolar);
+            //END LOBSTER SETUP
 
-
+            //CRAYFISH SETUP
             //Genset 1
             _gs1 = new Engine(GENSET1_ID, 19, 5, 9);
             _gs1.RPMSensor.ConversionFactor = GENSET1_CONVERSION_FACTOR;
@@ -226,9 +234,34 @@ namespace BBEngineRoomService
             _gs2.EngineStarted += onEngineStarted;
             _gs2.EngineStopped += onEngineStopped;
             _crayfishADM.AddDeviceGroup(_gs2);
+            //END CRAYFISH SETUP
 
-            AddADM(_lobsterADM);
-            AddADM(_crayfishADM);
+
+            //MOLLUSC SETUP
+            var td = new TestDevice01("tdm1");
+            _molluscADM.AddDevice(td);
+            _molluscADM.AddDeviceGroup(_induk);
+            _molluscADM.AddDeviceGroup(_bantu);
+            _molluscADM.AddDevice(_pompaCelup);
+            _molluscADM.AddDevice(_pompaSolar);
+            //END MOLLUSC SETUP
+
+
+
+            //PLANKTON SETUP
+            td = new TestDevice01("tdp1");
+            _planktonADM.AddDevice(td);
+            _planktonADM.AddDeviceGroup(_gs1);
+            _planktonADM.AddDeviceGroup(_gs2);
+            //END PLANKTON SETUP
+
+
+
+            //Add ADMs
+            //AddADM(_lobsterADM);
+            //AddADM(_crayfishADM);
+            AddADM(_molluscADM);
+            AddADM(_planktonADM);
 
             //Add alarm raisers and state change handler
             _alarmManager.AddRaisers(GetArduinoObjects());
@@ -287,7 +320,6 @@ namespace BBEngineRoomService
 
         override public bool HandleCommand(Connection cnn, Message message, String cmd, List<Object> args, Message response)
         {
-            String alarmID;
             switch (cmd)
             {
                 case AlarmsMessageSchema.COMMAND_ALARM_STATUS:

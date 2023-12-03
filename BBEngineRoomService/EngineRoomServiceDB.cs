@@ -30,7 +30,7 @@ namespace BBEngineRoomService
             RESET,
             INITIALISE
         }
-        static public EngineRoomServiceDB Create(System.Configuration.ApplicationSettingsBase settings, String dbnameKey = null)
+        new static public EngineRoomServiceDB Create(System.Configuration.ApplicationSettingsBase settings, String dbnameKey = null)
         {
             EngineRoomServiceDB db = dbnameKey != null ? DB.Create<EngineRoomServiceDB>(settings, dbnameKey) : DB.Create<EngineRoomServiceDB>(settings);
             return db;
