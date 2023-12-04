@@ -265,12 +265,12 @@ namespace BBEngineRoomService
 
             //Add alarm raisers and state change handler
             _alarmManager.AddRaisers(GetArduinoObjects());
-            _alarmManager.AlarmStateChanged += (Object sender, AlarmManager.Alarm alarm) =>
+            _alarmManager.AlarmChanged += (Object sender, AlarmManager.Alarm alarm) =>
             {
                 _alarmManager.NotifyAlarmsService(this, alarm);
                 try
                 {
-                    Tracing?.TraceEvent(TraceEventType.Warning, 999, "Alarm {0} changed state to {1} - {2}", alarm.ID, alarm.State, alarm.Message);
+                    Tracing?.TraceEvent(TraceEventType.Warning, 999, "Alarm {0} changed state to {1} - {2} - {3}", alarm.ID, alarm.State, alarm.Message, alarm.Code);
                     ServiceDB?.LogEvent("Alarm", alarm.ID, alarm.State, alarm.Message);
                 }
                 catch
