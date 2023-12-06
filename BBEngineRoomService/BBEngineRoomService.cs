@@ -280,10 +280,12 @@ namespace BBEngineRoomService
             };
         }
 
-        /*protected override void HandleAOPropertyChange(object sender, PropertyChangedEventArgs eargs)
+        protected override void OnADMsReady()
         {
-            base.HandleAOPropertyChange(sender, eargs);
-        }*/
+            base.OnADMsReady();
+
+            _alarmManager.Connect();
+        }
 
         public Pump GetPump(String pumpID)
         {

@@ -442,9 +442,5 @@ namespace BBEngineRoomService
             AlarmManager.RegisterAlarm(this, TempSensor.ID);
         }
 
-        public void RequestUpdateAlarms()
-        {
-            RequestStatus();
-        }
     }
 }
