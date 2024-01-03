@@ -122,8 +122,8 @@ namespace BBEngineRoomService
                 entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.RPMSensor.UID, "RPM", engine.RPM, desc));
                 desc = String.Format("OilState: {0}", engine.OilPressure);
                 entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.OilSensor.UID, "Oil", engine.OilPressure, desc));
-                //desc = String.Format("TempState: {0}, Sensor State: {1}", engine.TempState, engine.TempSensor.TemperatureSensorState);
-                //entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, desc));
+                desc = String.Format("TempState: {0}, Sensor State: {1}", engine.TempState, engine.TempSensor.TemperatureSensorState);
+                entries.Add(new ADMServiceDB.SnapshotLogEntry(engine.TempSensor.UID, "Temp", engine.Temp, desc));
             }
         }
 
@@ -240,28 +240,32 @@ namespace BBEngineRoomService
             //MOLLUSC SETUP
             var td = new TestDevice01("tdm1");
             _molluscADM.AddDevice(td);
-            _molluscADM.AddDeviceGroup(_induk);
-            _molluscADM.AddDeviceGroup(_bantu);
-            _molluscADM.AddDevice(_pompaCelup);
-            _molluscADM.AddDevice(_pompaSolar);
+            //_molluscADM.AddDeviceGroup(_induk);
+            //_molluscADM.AddDeviceGroup(_bantu);
+            //_molluscADM.AddDevice(_pompaCelup);
+            //_molluscADM.AddDevice(_pompaSolar);
             //END MOLLUSC SETUP
-
 
 
             //PLANKTON SETUP
             td = new TestDevice01("tdp1");
             _planktonADM.AddDevice(td);
-            _planktonADM.AddDeviceGroup(_gs1);
-            _planktonADM.AddDeviceGroup(_gs2);
+            //_planktonADM.AddDeviceGroup(_gs1);
+            //_planktonADM.AddDeviceGroup(_gs2);
             //END PLANKTON SETUP
 
 
 
             //Add ADMs
-            //AddADM(_lobsterADM);
-            //AddADM(_crayfishADM);
-            AddADM(_molluscADM);
-            AddADM(_planktonADM);
+            AddADM(_lobsterADM);
+            AddADM(_crayfishADM);
+            //AddADM(_molluscADM);
+            //AddADM(_planktonADM);
+        }
+
+        protected override void OnADMsReady()
+        {
+            base.OnADMsReady();
 
             //Add alarm raisers and state change handler
             _alarmManager.AddRaisers(GetArduinoObjects());
@@ -278,12 +282,6 @@ namespace BBEngineRoomService
                     //fail silently
                 }
             };
-        }
-
-        protected override void OnADMsReady()
-        {
-            base.OnADMsReady();
-
             _alarmManager.Connect();
         }
 

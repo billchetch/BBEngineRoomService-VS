@@ -73,6 +73,7 @@ namespace BBEngineRoomService
 
         public enum TemperatureState
         {
+            NO_SENSOR = -2,
             SENSOR_FAULT = -1,
             OK = 0, //0 to above
             HOT = 50,
@@ -194,14 +195,20 @@ namespace BBEngineRoomService
                 _tempState = value;
                 String alarmID = TempSensor.ID;
 
-                //check if there is a sesor fault first
-                if(_tempState == TemperatureState.SENSOR_FAULT)
+                //check if there is a sensor present
+                if(_tempState == TemperatureState.NO_SENSOR)
+                {
+                    AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "Temperature sensor not present");
+                    return;
+                }
+                //check if there is a sensor fault 
+                if (_tempState == TemperatureState.SENSOR_FAULT)
                 {
                     AlarmManager?.Raise(alarmID, AlarmState.MODERATE, "Temperature sensor fault");
                     return;
                 }
 
-                if(Running)
+                if (Running)
                 {
                     switch (_tempState)
                     {
@@ -323,7 +330,7 @@ namespace BBEngineRoomService
 
             AddDevice(RPMSensor);
             AddDevice(OilSensor);
-            //AddDevice(TempSensor);
+            AddDevice(TempSensor);
         }
 
 
@@ -423,9 +430,14 @@ namespace BBEngineRoomService
                     //Currently this will just be ignroed
                     break;
 
-                case DS18B20Array.SensorState.NO_SENSOR:
+                case DS18B20Array.SensorState.SENSOR_FAULT:
                     Temp = TempSensor.Temperature;
                     TempState = TemperatureState.SENSOR_FAULT;
+                    break;
+
+                case DS18B20Array.SensorState.NO_SENSOR:
+                    Temp = TempSensor.Temperature;
+                    TempState = TemperatureState.NO_SENSOR;
                     break;
 
                 default:
